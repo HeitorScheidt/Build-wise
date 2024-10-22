@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "903010147119",
+    "project_id": "build-wise-firebase",
+    "storage_bucket": "build-wise-firebase.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:903010147119:android:0fa8e275ffd23eccaf9fda",
+        "android_client_info": {
+          "package_name": "com.example.build_wise"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZ5CfM1_4-4_H3COqe5eZCG4uzu0tSlyU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

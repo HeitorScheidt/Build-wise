@@ -4,30 +4,32 @@ import '../models/project_model.dart';
 class ProjectService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Criar um novo projeto
-  Future<void> createProject(ProjectModel project, String userId) async {
+  // Ajuste do método createProject para apenas um argumento
+  Future<void> createProject(ProjectModel project) async {
     try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('projects')
-          .add({
-        ...project.toMap(),
-        'userId': userId, // Armazena o ID do usuário
-      });
+      await _firestore.collection('projects').add(project.toMap());
     } catch (e) {
       throw Exception('Erro ao criar projeto: $e');
     }
   }
 
+  Future<List<ProjectModel>> getProjectsByArchitectId(
+      String architectId) async {
+    QuerySnapshot snapshot = await FirebaseFirestore.instance
+        .collection('projects')
+        .where('architectId', isEqualTo: architectId)
+        .get();
+
+    return snapshot.docs
+        .map((doc) =>
+            ProjectModel.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+        .toList();
+  }
+
   // Obter todos os projetos por ID do usuário
-  Future<List<ProjectModel>> getProjects(String userId) async {
+  Future<List<ProjectModel>> getProjects() async {
     try {
-      QuerySnapshot snapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('projects')
-          .get();
+      QuerySnapshot snapshot = await _firestore.collection('projects').get();
 
       return snapshot.docs
           .map((doc) =>
@@ -57,101 +59,23 @@ class ProjectService {
     }
   }
 
-  // Método para lidar com clientes e funcionários
-  Future<List<ProjectModel>> getProjectsForUser(String userId) async {
-    try {
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(userId).get();
-
-      if (userDoc.exists) {
-        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-
-        // Verifica se o usuário tem o campo role e role é 'cliente'
-        if (userData.containsKey('role') && userData['role'] == 'cliente') {
-          // Verifica se o usuário tem o campo 'projects'
-          if (userData.containsKey('projects')) {
-            List<String> projectIds = List<String>.from(userData['projects']);
-            return await getProjectsByIds(projectIds);
-          }
-        }
-
-        // Verifica se o usuário é 'funcionario' e buscar projetos do arquiteto
-        if (userData.containsKey('role') && userData['role'] == 'funcionario') {
-          if (userData.containsKey('architectId')) {
-            String architectId = userData['architectId'];
-            return await getProjects(architectId);
-          }
-        }
-
-        // Se for arquiteto, carrega os próprios projetos
-        if (userData.containsKey('role') && userData['role'] == 'arquiteto') {
-          return await getProjects(userId);
-        }
-      }
-
-      return [];
-    } catch (e) {
-      throw Exception('Erro ao obter projetos para o usuário: $e');
-    }
-  }
-
   // Novo método para carregar projetos em tempo real com base no papel do usuário
-  Stream<List<ProjectModel>> getProjectsStreamForUser(String userId) async* {
-    DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(userId).get();
-    if (userDoc.exists) {
-      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-
-      if (userData.containsKey('role') && userData['role'] == 'cliente') {
-        if (userData.containsKey('projects')) {
-          List<String> projectIds = List<String>.from(userData['projects']);
-          yield* _firestore
-              .collection('projects')
-              .where(FieldPath.documentId, whereIn: projectIds)
-              .snapshots()
-              .map((snapshot) => snapshot.docs
-                  .map((doc) => ProjectModel.fromMap(
-                      doc.id, doc.data() as Map<String, dynamic>))
-                  .toList());
-        }
-      }
-
-      if (userData.containsKey('role') && userData['role'] == 'funcionario') {
-        if (userData.containsKey('architectId')) {
-          String architectId = userData['architectId'];
-          yield* _firestore
-              .collection('users')
-              .doc(architectId)
-              .collection('projects')
-              .snapshots()
-              .map((snapshot) => snapshot.docs
-                  .map((doc) => ProjectModel.fromMap(
-                      doc.id, doc.data() as Map<String, dynamic>))
-                  .toList());
-        }
-      }
-
-      if (userData.containsKey('role') && userData['role'] == 'arquiteto') {
-        yield* _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('projects')
-            .snapshots()
-            .map((snapshot) => snapshot.docs
-                .map((doc) => ProjectModel.fromMap(
-                    doc.id, doc.data() as Map<String, dynamic>))
-                .toList());
-      }
-    }
+  Stream<List<ProjectModel>> getProjectsStreamForUser(
+      List<String> projectIds) async* {
+    yield* _firestore
+        .collection('projects')
+        .where(FieldPath.documentId, whereIn: projectIds)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ProjectModel.fromMap(
+                doc.id, doc.data() as Map<String, dynamic>))
+            .toList());
   }
 
   // Atualizar um projeto existente
-  Future<void> updateProject(
-      String userId, String projectId, ProjectModel project) async {
+  Future<void> updateProject(String projectId, ProjectModel project) async {
     try {
       await _firestore
-          .collection('users')
-          .doc(userId)
           .collection('projects')
           .doc(projectId)
           .update(project.toMap());
@@ -161,14 +85,10 @@ class ProjectService {
   }
 
   // Obter um projeto por ID
-  Future<ProjectModel?> getProjectById(String userId, String projectId) async {
+  Future<ProjectModel?> getProjectById(String projectId) async {
     try {
-      DocumentSnapshot doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('projects')
-          .doc(projectId)
-          .get();
+      DocumentSnapshot doc =
+          await _firestore.collection('projects').doc(projectId).get();
       if (doc.exists) {
         return ProjectModel.fromMap(doc.id, doc.data() as Map<String, dynamic>);
       }
@@ -179,31 +99,76 @@ class ProjectService {
   }
 
   // Deletar um projeto
-  Future<void> deleteProject(String userId, String projectId) async {
+  Future<void> deleteProject(String projectId) async {
     try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('projects')
-          .doc(projectId)
-          .delete();
+      await _firestore.collection('projects').doc(projectId).delete();
     } catch (e) {
       throw Exception('Erro ao deletar projeto: $e');
     }
   }
 
   // Obter todos os projetos em tempo real
-  Stream<List<ProjectModel>> getAllProjects(String userId) {
-    return _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('projects')
-        .snapshots()
-        .map((snapshot) {
+  Stream<List<ProjectModel>> getAllProjects() {
+    return _firestore.collection('projects').snapshots().map((snapshot) {
       return snapshot.docs
           .map((doc) =>
               ProjectModel.fromMap(doc.id, doc.data() as Map<String, dynamic>))
           .toList();
     });
+  }
+
+  // Função para listar projetos de um cliente
+  Future<List<QueryDocumentSnapshot>> getClientProjects(String clientId) async {
+    QuerySnapshot projectsSnapshot = await _firestore
+        .collection('projects')
+        .where('clients', arrayContains: clientId)
+        .get();
+    return projectsSnapshot.docs;
+  }
+
+  // Função para listar projetos de um funcionário
+  Future<List<QueryDocumentSnapshot>> getEmployeeProjects(
+      String employeeId) async {
+    QuerySnapshot projectsSnapshot = await _firestore
+        .collection('projects')
+        .where('employees', arrayContains: employeeId)
+        .get();
+    return projectsSnapshot.docs;
+  }
+
+  // Função para buscar subcoleção 'gallery' do projeto
+  Stream<QuerySnapshot> getProjectGallery(String projectId) {
+    return _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('gallery')
+        .snapshots();
+  }
+
+  // Função para buscar subcoleção 'links' do projeto
+  Stream<QuerySnapshot> getProjectLinks(String projectId) {
+    return _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('links')
+        .snapshots();
+  }
+
+  // Função para buscar subcoleção 'workDiary' do projeto
+  Stream<QuerySnapshot> getProjectWorkDiary(String projectId) {
+    return _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('workDiary')
+        .snapshots();
+  }
+
+  // Função para buscar subcoleção 'files' do projeto
+  Stream<QuerySnapshot> getProjectFiles(String projectId) {
+    return _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('files')
+        .snapshots();
   }
 }

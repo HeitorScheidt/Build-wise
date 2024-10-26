@@ -2,9 +2,6 @@ import 'package:build_wise/blocs/member/add_member_bloc.dart';
 import 'package:build_wise/blocs/member/add_member_event.dart';
 import 'package:build_wise/blocs/member/add_member_state.dart';
 import 'package:build_wise/services/user_service.dart';
-import 'package:build_wise/views/pages/user_profile_page.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -40,8 +37,9 @@ class _AddMemberFormState extends State<AddMemberForm> {
   Future<void> _loadUserProjects() async {
     try {
       print("Buscando projetos para o userId: ${widget.userId}");
+      // Obtém apenas os projetos onde o architectId corresponde ao userId do usuário logado
       final fetchedProjects =
-          await UserService().fetchUserProjects(widget.userId);
+          await UserService().fetchUserProjectsByArchitectId(widget.userId);
 
       if (mounted) {
         setState(() {
@@ -66,64 +64,6 @@ class _AddMemberFormState extends State<AddMemberForm> {
     isClient = false;
   }
 
-  // Função para adicionar membro, salvar clientsID no documento do arquiteto e enviar e-mail de verificação
-  Future<void> _addMember() async {
-    final String email = emailController.text;
-    final String password = passwordController.text;
-    final String name = nameController.text;
-
-    try {
-      UserCredential userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password);
-
-      User? user = userCredential.user;
-
-      if (user != null) {
-        // Adiciona o novo usuário na coleção 'users'
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'name': name,
-          'email': email,
-          'architectId': widget.userId, // ID do arquiteto
-          'createdAt': FieldValue.serverTimestamp(),
-          'role': selectedRole,
-          'projects': selectedProjectIds,
-        });
-
-        // Adiciona o clientsID no documento do arquiteto
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(widget.userId)
-            .update({
-          'clientsID': FieldValue.arrayUnion([user.uid]),
-        });
-
-        // Envia o e-mail de verificação
-        await user.sendEmailVerification();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Usuário criado com sucesso! Um e-mail de verificação foi enviado.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        _clearFields(); // Limpa os campos após a criação
-
-        // Fecha o AlertDialog após o envio do e-mail
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      print('Erro ao criar usuário: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao criar usuário: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
@@ -139,6 +79,7 @@ class _AddMemberFormState extends State<AddMemberForm> {
             );
             _clearFields();
             _loadUserProjects(); // Recarregar projetos
+            Navigator.of(context).pop(); // Fecha o AlertDialog
           } else if (state.errorMessage != null && !state.isSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -335,7 +276,23 @@ class _AddMemberFormState extends State<AddMemberForm> {
                         SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () {
-                            _addMember(); // Chama a função de adicionar membro com verificação de email
+                            context.read<AddMemberBloc>().add(AddMemberSubmit(
+                                  email: emailController.text,
+                                  password: passwordController.text,
+                                  name: nameController.text,
+                                  lastName: lastNameController.text,
+                                  cep: cepController.text,
+                                  isClient: isClient,
+                                  projectIds: selectedProjectIds,
+                                  userId: widget.userId,
+                                  address: state.address,
+                                  bairro: state.bairro,
+                                  logradouro: state.logradouro,
+                                  cidade: state.cidade,
+                                  numero: numeroController.text,
+                                  architectId: widget.userId,
+                                  role: selectedRole ?? 'Cliente',
+                                ));
                           },
                           child: Text('Criar conta',
                               style: TextStyle(fontSize: 16)),

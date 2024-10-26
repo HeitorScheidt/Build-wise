@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'add_member_event.dart';
 import 'add_member_state.dart';
 import 'package:build_wise/services/user_service.dart';
+import 'package:build_wise/models/user_model.dart';
 
 class AddMemberBloc extends Bloc<AddMemberEvent, AddMemberState> {
   final UserService _userService;
@@ -52,27 +53,43 @@ class AddMemberBloc extends Bloc<AddMemberEvent, AddMemberState> {
         return;
       }
 
-      // Criação do usuário e salvamento no Firebase
-      await _userService.createUser(
+      // Cria uma instância de UserModel com os dados fornecidos
+      final newUser = UserModel(
+        id: '',
         email: event.email,
-        password: event.password,
         name: event.name,
         lastName: event.lastName,
-        cep: event.cep, // Garantindo que o CEP não seja nulo
-        isClient: event.isClient,
-        projectIds: event
-            .projectIds, // Modificado para aceitar lista de IDs de projetos
-        address: state.address, // Salvando o endereço preenchido
-        bairro: state.bairro, // Salvando o bairro preenchido
-        logradouro: state.logradouro, // Salvando o logradouro preenchido
-        cidade: state.cidade, // Salvando a cidade preenchida
-        numero: event.numero, // Salvando o número preenchido
+        cep: event.cep,
+        role: event.role,
+        architectId: event.architectId,
+        address: state.address,
+        bairro: state.bairro,
+        logradouro: state.logradouro,
+        cidade: state.cidade,
+        numero: event.numero,
+        projectIds: event.projectIds ?? [],
+        password: event.password,
       );
+
+      // Criação do usuário com o UserModel
+      final generatedUserId = await _userService.createUser(newUser);
+
+      // Atualização no documento do projeto com base no role
+      if (event.projectIds != null) {
+        for (String projectId in event.projectIds!) {
+          if (event.role == 'employee') {
+            await _userService.updateProjectEmployees(
+                projectId, generatedUserId);
+          } else if (event.role == 'client') {
+            await _userService.updateProjectClients(projectId, generatedUserId);
+          }
+        }
+      }
 
       // Indicando que a operação foi bem-sucedida
       emit(state.copyWith(
         isLoading: false,
-        isSuccess: true, // Indicando sucesso da operação
+        isSuccess: true,
       ));
     } catch (e) {
       emit(state.copyWith(

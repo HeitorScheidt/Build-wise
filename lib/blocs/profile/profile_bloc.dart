@@ -21,9 +21,10 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     try {
       print(
           "Iniciando busca de dados de perfil para o ID do usuário: ${event.userId}");
-      // Limpar cache antes de buscar dados novos
-      await profileService.clearProfileCache();
+
+      // Removido: Limpeza de cache de `role`, agora mantemos apenas o carregamento de dados de perfil
       final data = await profileService.fetchProfileData();
+
       if (data != null) {
         print("Dados de perfil carregados com sucesso: $data");
         emit(ProfileLoaded(data));
@@ -38,6 +39,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   }
 
   // Método para salvar os dados do perfil
+// ProfileBloc
   Future<void> _onSaveProfileData(
       SaveProfileData event, Emitter<ProfileState> emit) async {
     emit(ProfileSaving());
@@ -46,6 +48,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       await profileService.saveProfileData(event.profileData);
       print("Dados de perfil salvos com sucesso.");
       emit(ProfileSaved());
+
+      // Recarrega os dados para refletir as mudanças
+      add(FetchProfileData(event.userId));
     } catch (e) {
       print("Erro ao salvar os dados do perfil: $e");
       emit(ProfileError("Erro ao salvar os dados do perfil: $e"));
@@ -69,13 +74,15 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   }
 
   // Método para limpar os dados do perfil quando o usuário fizer logout
+// ProfileBloc.dart
   Future<void> _onClearProfileData(
       ClearProfileData event, Emitter<ProfileState> emit) async {
     try {
       print("Limpando cache de dados do perfil.");
       await profileService.clearProfileCache();
-      emit(
-          ProfileInitial()); // Redefine o estado para o inicial, limpando qualquer dado carregado
+      emit(ProfileInitial());
+      await Future.delayed(
+          Duration(milliseconds: 100)); // Pausa para atualização
       print("Cache de perfil limpo com sucesso.");
     } catch (e) {
       print("Erro ao limpar o cache de perfil: $e");

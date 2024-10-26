@@ -5,15 +5,15 @@ import 'package:build_wise/blocs/file/file_bloc.dart';
 import 'package:build_wise/blocs/gallery/gallery_bloc.dart';
 import 'package:build_wise/blocs/link/link_bloc.dart';
 import 'package:build_wise/blocs/link/link_event.dart';
-import 'package:build_wise/blocs/profile/profile_bloc.dart'; // Certifique-se de que estamos usando o ProfileBloc aqui
+import 'package:build_wise/blocs/profile/profile_bloc.dart';
 import 'package:build_wise/blocs/project/project_bloc.dart';
 import 'package:build_wise/blocs/schedule/schedule_bloc.dart';
-import 'package:build_wise/blocs/schedule/schedule_event.dart';
+import 'package:build_wise/providers/user_role_provider.dart';
 import 'package:build_wise/services/cashflow_service.dart';
 import 'package:build_wise/services/file_service.dart';
 import 'package:build_wise/services/gallery_service.dart';
 import 'package:build_wise/services/link_service.dart';
-import 'package:build_wise/services/profile_service.dart'; // Service é usado dentro do ProfileBloc
+import 'package:build_wise/services/profile_service.dart';
 import 'package:build_wise/services/schedule_service.dart';
 import 'package:build_wise/views/pages/bottomnav.dart';
 import 'package:build_wise/views/pages/cashflow_page.dart';
@@ -30,6 +30,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:provider/provider.dart'; // Importação do provider
 import 'package:build_wise/blocs/auth/auth_bloc.dart';
 import 'package:build_wise/services/auth_service.dart';
 import 'package:build_wise/services/project_service.dart';
@@ -47,8 +48,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
+    return MultiProvider(
       providers: [
+        ChangeNotifierProvider(
+            create: (_) => UserRoleProvider()), // Adicionado UserRoleProvider
         BlocProvider(
           create: (context) => AuthBloc(
             AuthService(),
@@ -73,7 +76,8 @@ class MyApp extends StatelessWidget {
         ),
         BlocProvider(
           create: (context) => ProfileBloc(
-              ProfileService()), // Certifique-se de criar o ProfileBloc aqui
+            ProfileService(),
+          ), // Certifique-se de criar o ProfileBloc aqui
         ),
         BlocProvider(
           create: (context) => LinkBloc(LinkService()),
@@ -95,23 +99,27 @@ class MyApp extends StatelessWidget {
           '/dashboard': (context) => const DashboardPage(),
           '/bottomnav': (context) => const Bottomnav(),
           //'/project': (context) => const ProjectPage(),
+
           '/work_diary_page': (context) {
             final args = ModalRoute.of(context)!.settings.arguments
                 as Map<String, dynamic>;
             return WorkDiaryPage(projectId: args['projectId']);
           },
+
           '/folder_page': (context) {
             final args = ModalRoute.of(context)!.settings.arguments
                 as Map<String, dynamic>;
             return FolderPage(
                 userId: args['userId'], projectId: args['projectId']);
           },
+
           '/gallery_page': (context) {
             final args = ModalRoute.of(context)!.settings.arguments
                 as Map<String, dynamic>;
             return GalleryPage(
                 userId: args['userId'], projectId: args['projectId']);
           },
+
           '/cashflow_page': (context) {
             final args = ModalRoute.of(context)!.settings.arguments
                 as Map<String, dynamic>;
@@ -126,28 +134,32 @@ class MyApp extends StatelessWidget {
               ),
             );
           },
+
           '/confirm_email': (context) {
             final User user =
                 ModalRoute.of(context)!.settings.arguments as User;
             return ConfirmEmailPage(user: user);
           },
-          '/link_page': (context) {
+
+          /* '/link_page': (context) {
             final args = ModalRoute.of(context)!.settings.arguments
                 as Map<String, dynamic>;
             return BlocProvider(
               create: (context) => LinkBloc(
                 LinkService(),
-              )..add(LoadLinks(args['userId'], args['projectId'])),
+              )..add(LoadLinks(args['projectId'])), // Removi o userId
               child: LinkPage(
-                userId: args['userId'],
                 projectId: args['projectId'],
               ),
             );
-          },
+          },*/
+
           '/cronograma_page': (context) {
             final args = ModalRoute.of(context)!.settings.arguments
                 as Map<String, dynamic>;
-            return CronogramaPage(userId: args['userId']);
+            return CronogramaPage(
+              userId: args['userId'],
+            );
           },
         },
       ),

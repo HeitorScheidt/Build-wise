@@ -18,6 +18,12 @@ class LoadProjectsEvent extends ProjectEvent {
   List<Object> get props => [projectIds];
 }
 
+class LoadProjectsByArchitectEvent extends ProjectEvent {
+  final String architectId;
+
+  LoadProjectsByArchitectEvent(this.architectId);
+}
+
 class VerifyCepEvent extends ProjectEvent {
   final String cep;
 
@@ -29,10 +35,9 @@ class VerifyCepEvent extends ProjectEvent {
 
 class CreateProjectEvent extends ProjectEvent {
   final ProjectModel projectData;
-  final String userId; // ID do usuário para criar o projeto
 
-  const CreateProjectEvent({required this.projectData, required this.userId});
+  const CreateProjectEvent({required this.projectData});
 
   @override
-  List<Object> get props => [projectData, userId];
+  List<Object> get props => [projectData];
 }

@@ -29,6 +29,7 @@ class AddMemberSubmit extends AddMemberEvent {
       projectIds; // Alterado para aceitar uma lista de IDs de projetos
   final String userId;
   final String architectId;
+  final String role; // Novo campo role
   // Novos parâmetros de endereço
   final String? address;
   final String? bairro;
@@ -51,6 +52,7 @@ class AddMemberSubmit extends AddMemberEvent {
     this.cidade,
     this.numero,
     required this.architectId,
+    required this.role, // Exige o campo role ao criar um membro
   });
 
   @override
@@ -68,6 +70,7 @@ class AddMemberSubmit extends AddMemberEvent {
         logradouro,
         cidade,
         architectId,
+        role, // Adiciona role aos props para comparação
         numero,
       ];
 }

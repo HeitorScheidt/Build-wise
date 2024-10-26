@@ -29,6 +29,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   String? role;
   List<Map<String, dynamic>> clients = [];
   List<String> availableProjects = [];
+  List<Map<String, dynamic>> employees = [];
 
   // Controladores de nome, sobrenome, email, sexo, CPF/CNPJ e CEP
   final TextEditingController nameController = TextEditingController();
@@ -45,6 +46,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _fetchProfileData();
     _loadClients();
     _loadAvailableProjects();
+    _loadClientsAndEmployees();
   }
 
   void _updateCurrentUser() {
@@ -71,6 +73,32 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     BlocProvider.of<ProfileBloc>(context)
         .add(FetchProfileData(user!.uid)); // Removido isMember
+  }
+
+  void _showMemberDetails(Map<String, dynamic> member) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Detalhes do Membro'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Nome: ${member['name']} ${member['lastName']}'),
+              Text('Email: ${member['email']}'),
+              Text(
+                  'Email Verificado: ${member['emailVerified'] ? "Sim" : "Não"}'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Fechar'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // Carrega os clientes do arquiteto, incluindo nome e sobrenome
@@ -161,12 +189,94 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _loadClients(); // Recarrega os clientes após remover o projeto
   }
 
+  Future<void> _loadClientsAndEmployees() async {
+    if (user == null) {
+      print("Nenhum usuário para carregar membros");
+      return;
+    }
+
+    print("Carregando membros para o usuário: ${user!.uid}");
+    var userSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .get();
+
+    List<Map<String, dynamic>> loadedClients = [];
+    List<Map<String, dynamic>> loadedEmployees = [];
+
+    if (userSnapshot.exists) {
+      // Carrega clientes usando o campo 'clients'
+      if (userSnapshot.data()!.containsKey('clients')) {
+        List<String> clientIds = List<String>.from(userSnapshot['clients']);
+        for (var clientId in clientIds) {
+          var clientSnapshot = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(clientId)
+              .get();
+          if (clientSnapshot.exists) {
+            loadedClients.add({
+              'id': clientSnapshot.id,
+              'name': clientSnapshot['name'] ?? 'Sem Nome',
+              'lastName': clientSnapshot['lastName'] ?? 'Sem Sobrenome',
+              'email': clientSnapshot['email'] ?? 'Sem Email',
+              'emailVerified': clientSnapshot['emailVerified'] ?? false,
+            });
+            print("Cliente adicionado: ${clientSnapshot['name']}");
+          }
+        }
+      } else {
+        print("Nenhum cliente encontrado");
+      }
+
+      // Carrega funcionários usando o campo 'employees'
+      if (userSnapshot.data()!.containsKey('employees')) {
+        List<String> employeeIds = List<String>.from(userSnapshot['employees']);
+        for (var employeeId in employeeIds) {
+          var employeeSnapshot = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(employeeId)
+              .get();
+          if (employeeSnapshot.exists) {
+            loadedEmployees.add({
+              'id': employeeSnapshot.id,
+              'name': employeeSnapshot['name'] ?? 'Sem Nome',
+              'lastName': employeeSnapshot['lastName'] ?? 'Sem Sobrenome',
+              'email': employeeSnapshot['email'] ?? 'Sem Email',
+              'emailVerified': employeeSnapshot['emailVerified'] ?? false,
+            });
+            print("Funcionário adicionado: ${employeeSnapshot['name']}");
+          }
+        }
+      } else {
+        print("Nenhum funcionário encontrado");
+      }
+    }
+
+    // Atualiza o estado com os membros carregados
+    setState(() {
+      clients = loadedClients;
+      employees = loadedEmployees;
+    });
+    print("Clientes carregados: $clients");
+    print("Funcionários carregados: $employees");
+  }
+
   // Deletar um cliente
   Future<void> _deleteClient(String clientId) async {
     print("Deletando cliente: $clientId");
     await FirebaseFirestore.instance.collection('users').doc(clientId).delete();
     setState(() {
       clients.removeWhere((client) => client['id'] == clientId);
+    });
+  }
+
+  Future<void> _deleteMember(String memberId) async {
+    print("Deletando membro: $memberId");
+    await FirebaseFirestore.instance.collection('users').doc(memberId).delete();
+
+    setState(() {
+      clients.removeWhere((client) => client['id'] == memberId);
+      employees.removeWhere((employee) => employee['id'] == memberId);
     });
   }
 
@@ -290,7 +400,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   'cep': cepController.text,
                 };
                 BlocProvider.of<ProfileBloc>(context).add(SaveProfileData(
-                    updatedData, user!.uid)); // Removido memberId
+                    updatedData,
+                    FirebaseAuth.instance.currentUser?.uid ??
+                        '')); // Removido memberId
                 Navigator.of(context).pop();
                 _fetchProfileData(); // Recarrega o perfil após salvar
               },
@@ -309,18 +421,26 @@ class _UserProfilePageState extends State<UserProfilePage> {
   // Lida com o logout do usuário
   Future<void> _handleLogout() async {
     print("Realizando logout do usuário");
+
+    // Limpa dados locais do perfil e controladores de texto para evitar dados residuais
     setState(() {
       userName = "Usuário Anônimo";
       profileImageUrl = null;
       role = null;
       nameController.clear();
       lastNameController.clear();
+      emailController.clear();
+      cpfController.clear();
+      cepController.clear();
     });
 
+    // Emite evento para o AuthBloc realizar o logout
     BlocProvider.of<AuthBloc>(context).add(AuthLogoutRequested());
 
-    await Future.delayed(Duration(seconds: 2));
+    // Limpa dados do ProfileBloc para garantir que o cache seja resetado
+    BlocProvider.of<ProfileBloc>(context).add(ClearProfileData());
 
+    // Realiza o logout no Firebase e atualiza o estado do usuário
     await FirebaseAuth.instance.signOut().then((_) {
       setState(() {
         user = null;
@@ -328,8 +448,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       print("Usuário deslogado com sucesso");
     });
 
-    BlocProvider.of<ProfileBloc>(context).add(ClearProfileData());
+    // Reinicia o ProfileBloc após logout
+    context.read<ProfileBloc>().emit(ProfileInitial());
 
+    // Navega para a tela de login após o logout completo e a limpeza de dados
     Navigator.of(context)
         .pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
   }
@@ -490,182 +612,224 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  bool showClients = true;
+
   Widget _buildClientManagement() {
     return Column(
-      children: clients.map((client) {
-        return ListTile(
-          title: Text('${client['name']} ${client['lastName']}'),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: Icon(Icons.close),
-                onPressed: () => _deleteClient(client['id']),
-              ),
-              IconButton(
-                icon: Icon(Icons.email),
-                onPressed: () => _resendVerificationEmail(client['id']),
-              ),
-            ],
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextButton(
+              onPressed: () => setState(() => showClients = true),
+              child: Text("Clientes"),
+            ),
+            TextButton(
+              onPressed: () => setState(() => showClients = false),
+              child: Text("Funcionários"),
+            ),
+          ],
+        ),
+        SingleChildScrollView(
+          child: Column(
+            children: (showClients ? clients : employees).map((member) {
+              return ListTile(
+                title: Text('${member['name']} ${member['lastName']}'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.email),
+                      onPressed: () => _resendVerificationEmail(member['id']),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete),
+                      onPressed: () => _deleteMember(member['id']),
+                    ),
+                  ],
+                ),
+                onTap: () => _showMemberDetails(member),
+              );
+            }).toList(),
           ),
-          onTap: () =>
-              _showClientDetails(client), // Exibe os detalhes do cliente
-        );
-      }).toList(),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ProfileBloc, ProfileState>(
-      builder: (context, state) {
-        if (state is ProfileLoading) {
-          print("Carregando dados de perfil...");
-          return Center(child: CircularProgressIndicator());
-        }
-
-        if (state is ProfileLoaded) {
-          final profileData = state.profileData;
-          role = profileData?['role'];
-          userName = profileData?['name'] ?? 'Usuário Anônimo';
-          profileImageUrl = profileData?['profileImageUrl'];
-
-          print("Dados de perfil carregados: $profileData");
-
-          nameController.text = profileData?['name'] ?? '';
-          lastNameController.text = profileData?['lastName'] ?? '';
-          emailController.text = profileData?['email'] ?? '';
-          cpfController.text = profileData?['cpf'] ?? '';
-          cepController.text = profileData?['cep'] ?? '';
-
-          return Scaffold(
-            backgroundColor: Colors.white,
-            appBar: AppBar(
-              title:
-                  Text('Profile', style: appWidget.headerLineTextFieldStyle()),
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.primaryColor,
-            ),
-            body: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Material(
-                    elevation: 5,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(16.0),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryColor,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Material(
-                            elevation: 5,
-                            shape: CircleBorder(),
-                            child: GestureDetector(
-                              onTap: _showImageSourceDialog,
-                              child: CircleAvatar(
-                                radius: 30,
-                                backgroundImage: profileImageUrl != null
-                                    ? NetworkImage(profileImageUrl!)
-                                    : AssetImage('assets/images/teste.jpg')
-                                        as ImageProvider,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              '$userName ${profileData?['lastName'] ?? ''}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  ListTile(
-                    leading: Icon(Icons.person_outline),
-                    title: Text('Profile Details'),
-                    subtitle: Text('View your personal details'),
-                    onTap: () => _showProfileForm(profileData),
-                  ),
-                  if (role == null)
-                    ListTile(
-                      leading: Icon(Icons.group_add_outlined),
-                      title: Text('Add Member'),
-                      subtitle: Text('Add a third person to your account'),
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return Dialog(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12.0),
-                              ),
-                              insetPadding: EdgeInsets.all(0),
-                              child: SizedBox(
-                                width: MediaQuery.of(context).size.width * 0.9,
-                                height:
-                                    MediaQuery.of(context).size.height * 0.6,
-                                child: AddMemberForm(userId: user?.uid ?? ''),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  if (role == null)
-                    ListTile(
-                      leading: Icon(Icons.people_outline),
-                      title: Text('Gerenciar Clientes'),
-                      subtitle: Text('Ver e gerenciar seus clientes'),
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              title: Text('Gerenciar Clientes'),
-                              content: SingleChildScrollView(
-                                child: _buildClientManagement(),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  child: Text('Fechar'),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ListTile(
-                    leading: Icon(Icons.logout),
-                    title: Text('Logout'),
-                    onTap: () async {
-                      await _handleLogout();
-                    },
-                  ),
-                ],
-              ),
-            ),
+    return BlocListener<ProfileBloc, ProfileState>(
+      listener: (context, state) {
+        if (state is ProfileError) {
+          // Recarrega os dados do perfil se houver um erro
+          BlocProvider.of<ProfileBloc>(context).add(
+            FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
+          );
+        } else if (state is ProfileSaved) {
+          // Após salvar, recarrega os dados para refletir as mudanças
+          BlocProvider.of<ProfileBloc>(context).add(
+            FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
           );
         }
-
-        print("Erro ao carregar perfil");
-        return Scaffold(
-          body: Center(child: Text("Erro ao carregar perfil")),
-        );
       },
+      child: BlocBuilder<ProfileBloc, ProfileState>(
+        builder: (context, state) {
+          if (state is ProfileLoading) {
+            print("Carregando dados de perfil...");
+            return Center(child: CircularProgressIndicator());
+          }
+
+          if (state is ProfileLoaded) {
+            final profileData = state.profileData;
+            role = profileData?['role'];
+            userName = profileData?['name'] ?? 'Usuário Anônimo';
+            profileImageUrl = profileData?['profileImageUrl'];
+
+            print("Dados de perfil carregados: $profileData");
+
+            nameController.text = profileData?['name'] ?? '';
+            lastNameController.text = profileData?['lastName'] ?? '';
+            emailController.text = profileData?['email'] ?? '';
+            cpfController.text = profileData?['cpf'] ?? '';
+            cepController.text = profileData?['cep'] ?? '';
+
+            return Scaffold(
+              backgroundColor: Colors.white,
+              appBar: AppBar(
+                title: Text('Profile',
+                    style: appWidget.headerLineTextFieldStyle()),
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.primaryColor,
+              ),
+              body: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Material(
+                      elevation: 5,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(16.0),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Material(
+                              elevation: 5,
+                              shape: CircleBorder(),
+                              child: GestureDetector(
+                                onTap: _showImageSourceDialog,
+                                child: CircleAvatar(
+                                  radius: 30,
+                                  backgroundImage: profileImageUrl != null
+                                      ? NetworkImage(profileImageUrl!)
+                                      : AssetImage('assets/images/teste.jpg')
+                                          as ImageProvider,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                '$userName ${profileData?['lastName'] ?? ''}',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    ListTile(
+                      leading: Icon(Icons.person_outline),
+                      title: Text('Profile Details'),
+                      subtitle: Text('View your personal details'),
+                      onTap: () => _showProfileForm(profileData),
+                    ),
+                    if (profileData?['role'] == 'arquiteto')
+                      ListTile(
+                        leading: Icon(Icons.group_add_outlined),
+                        title: Text('Add Member'),
+                        subtitle: Text('Add a third person to your account'),
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return Dialog(
+                                backgroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                insetPadding: EdgeInsets.all(0),
+                                child: SizedBox(
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.9,
+                                  height:
+                                      MediaQuery.of(context).size.height * 0.6,
+                                  child: AddMemberForm(userId: user?.uid ?? ''),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    if (profileData?['role'] == 'arquiteto')
+                      ListTile(
+                        leading: Icon(Icons.people_outline),
+                        title: Text('Gerenciar Membros'),
+                        subtitle: Text(
+                            'Ver e gerenciar seus clientes e funcionários'),
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: Text('Gerenciar Membros'),
+                                content: Container(
+                                  width: double.maxFinite,
+                                  height:
+                                      400, // Altura máxima para o conteúdo rolável
+                                  child: _buildClientManagement(),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    child: Text('Fechar'),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ListTile(
+                      leading: Icon(Icons.logout),
+                      title: Text('Logout'),
+                      onTap: () async {
+                        await _handleLogout();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          print("Erro ao carregar perfil");
+          return Scaffold(
+            body: Center(child: Text("Erro ao carregar perfil")),
+          );
+        },
+      ),
     );
   }
 }

@@ -56,18 +56,18 @@ class ProfileService {
   }
 
   // Busca dados do perfil do usuário
+// Método simplificado de buscar dados do perfil
+// profile_service.dart
   Future<Map<String, dynamic>?> fetchProfileData() async {
-    if (user == null) {
+    User? currentUser = FirebaseAuth.instance.currentUser; // Força atualização
+    if (currentUser == null) {
       print("Usuário não autenticado.");
       return null;
     }
-    print("ID do usuário atual: ${user!.uid}");
     try {
-      // Pega os dados diretamente da coleção `users`
       DocumentSnapshot userSnapshot =
-          await _firestore.collection('users').doc(user!.uid).get();
+          await _firestore.collection('users').doc(currentUser.uid).get();
       if (userSnapshot.exists) {
-        print("Dados do usuário carregados: ${userSnapshot.data()}");
         return userSnapshot.data() as Map<String, dynamic>?;
       } else {
         print("Usuário não encontrado.");
@@ -80,14 +80,16 @@ class ProfileService {
 
   // Salva os dados do perfil para o usuário
   Future<void> saveProfileData(Map<String, dynamic> data) async {
-    if (user == null) {
+    User? currentUser = FirebaseAuth
+        .instance.currentUser; // Garante que o usuário esteja atualizado
+    if (currentUser == null) {
       print("Usuário não autenticado.");
       return;
     }
 
     try {
-      // Atualiza dados do usuário
-      await _firestore.collection('users').doc(user!.uid).update(data);
+      // Atualiza dados do usuário no Firestore
+      await _firestore.collection('users').doc(currentUser.uid).update(data);
       print("Dados do usuário atualizados com sucesso.");
     } catch (e) {
       print("Erro ao salvar os dados do perfil: $e");

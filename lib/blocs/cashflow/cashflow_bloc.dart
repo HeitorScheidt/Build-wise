@@ -17,7 +17,9 @@ class CashflowBloc extends Bloc<CashflowEvent, CashflowState> {
             onData: (cashflows) {
           print(
               "Cashflows loaded for userId: ${event.userId}, projectId: ${event.projectId}");
-          return CashflowLoaded(cashflows);
+          return cashflows.isEmpty
+              ? CashflowError("Pasta vazia")
+              : CashflowLoaded(cashflows);
         }, onError: (_, __) {
           print("Error loading cashflows");
           return CashflowError("Failed to load cashflows");

@@ -458,15 +458,27 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: source);
+    try {
+      final pickedFile = await picker.pickImage(source: source);
 
-    if (pickedFile != null) {
-      setState(() {
-        _imageFile = File(pickedFile.path);
-      });
-      BlocProvider.of<ProfileBloc>(context)
-          .add(UploadProfileImage(_imageFile!, user!.uid)); // Removido memberId
-      _fetchProfileData(); // Recarrega o perfil após alterar a foto
+      if (pickedFile != null) {
+        setState(() {
+          _imageFile = File(pickedFile.path);
+        });
+        String userId = FirebaseAuth.instance.currentUser!.uid;
+        BlocProvider.of<ProfileBloc>(context)
+            .add(UploadProfileImage(_imageFile!, userId));
+        _fetchProfileData(); // Recarrega o perfil após alterar a foto
+      } else {
+        print("Nenhuma imagem foi selecionada.");
+      }
+    } catch (e) {
+      print("Erro ao capturar imagem: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text("Erro ao capturar imagem."),
+            backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -662,12 +674,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
     return BlocListener<ProfileBloc, ProfileState>(
       listener: (context, state) {
         if (state is ProfileError) {
-          // Recarrega os dados do perfil se houver um erro
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Erro ao carregar perfil."),
+              backgroundColor: Colors.red,
+            ),
+          );
           BlocProvider.of<ProfileBloc>(context).add(
             FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
           );
         } else if (state is ProfileSaved) {
-          // Após salvar, recarrega os dados para refletir as mudanças
+          BlocProvider.of<ProfileBloc>(context).add(
+            FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
+          );
+        } else if (state is ProfileImageUploaded) {
+          // Recarrega o perfil apenas após o upload da imagem
           BlocProvider.of<ProfileBloc>(context).add(
             FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
           );
@@ -676,7 +697,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
       child: BlocBuilder<ProfileBloc, ProfileState>(
         builder: (context, state) {
           if (state is ProfileLoading) {
-            print("Carregando dados de perfil...");
             return Center(child: CircularProgressIndicator());
           }
 
@@ -685,8 +705,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
             role = profileData?['role'];
             userName = profileData?['name'] ?? 'Usuário Anônimo';
             profileImageUrl = profileData?['profileImageUrl'];
-
-            print("Dados de perfil carregados: $profileData");
 
             nameController.text = profileData?['name'] ?? '';
             lastNameController.text = profileData?['lastName'] ?? '';
@@ -697,8 +715,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
             return Scaffold(
               backgroundColor: Colors.white,
               appBar: AppBar(
-                title: Text('Profile',
-                    style: appWidget.headerLineTextFieldStyle()),
+                title: Text(
+                  'Profile',
+                  style: appWidget.headerLineTextFieldStyle(),
+                ),
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.primaryColor,
               ),
@@ -795,8 +815,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                 title: Text('Gerenciar Membros'),
                                 content: Container(
                                   width: double.maxFinite,
-                                  height:
-                                      400, // Altura máxima para o conteúdo rolável
+                                  height: 400,
                                   child: _buildClientManagement(),
                                 ),
                                 actions: [
@@ -824,7 +843,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
             );
           }
 
-          print("Erro ao carregar perfil");
           return Scaffold(
             body: Center(child: Text("Erro ao carregar perfil")),
           );

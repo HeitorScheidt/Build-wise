@@ -29,18 +29,19 @@ class _ProjectPageState extends State<ProjectPage> {
   @override
   void initState() {
     super.initState();
-    _initializeData();
+    _projectsFuture = _initializeData();
   }
 
-  Future<void> _initializeData() async {
+  Future<List<ProjectModel>> _initializeData() async {
     final roleProvider = Provider.of<UserRoleProvider>(context, listen: false);
     await roleProvider.fetchUserRole();
 
     setState(() {
       userRole = roleProvider.role;
       projectIds = roleProvider.projectIds ?? [];
-      _projectsFuture = loadProjects();
     });
+
+    return loadProjects();
   }
 
   Future<List<ProjectModel>> loadProjects() async {
@@ -48,10 +49,9 @@ class _ProjectPageState extends State<ProjectPage> {
 
     if (userRole == 'arquiteto') {
       query = query.where('architectId', isEqualTo: currentUserId);
-    } else if (userRole == 'cliente' && projectIds.isNotEmpty) {
-      query = query.where(FieldPath.documentId, whereIn: projectIds);
-    } else if (userRole == 'cliente' && projectIds.isEmpty) {
-      // Caso cliente não tenha projetos associados
+    } else if (userRole == 'Cliente') {
+      query = query.where('clients', arrayContains: currentUserId);
+    } else {
       return [];
     }
 
@@ -130,6 +130,9 @@ class _ProjectPageState extends State<ProjectPage> {
               onPressed: () => _showAddProjectDialog(context, currentUserId),
               backgroundColor: AppColors.primaryColor,
               child: const Icon(Icons.add, color: Colors.white),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(50),
+              ),
             )
           : null,
     );
@@ -144,33 +147,48 @@ class _ProjectPageState extends State<ProjectPage> {
         }
         return Container(
           margin: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white, // Define o fundo branco do card
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: Material(
+            color: Colors.white, // Fundo do Material em branco
             elevation: 5.0,
             borderRadius: BorderRadius.circular(20),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.network(
-                    snapshot.data!,
-                    height: 150,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Image.asset(
-                        'assets/images/project_default_header.jpg',
-                        height: 150,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      );
-                    },
+                Container(
+                  color: Colors.white,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.network(
+                      snapshot.data!,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Image.asset(
+                          'assets/images/project_default_header.jpg',
+                          height: 200,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        );
+                      },
+                    ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Text(
-                    project.name ?? 'Sem nome',
-                    style: appWidget.boldLineTextFieldStyle(),
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Container(
+                      color: Colors.white, // Define o fundo branco do texto
+                      child: Text(
+                        project.name ?? 'Sem nome',
+                        style: appWidget.boldLineTextFieldStyle(),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -181,14 +199,14 @@ class _ProjectPageState extends State<ProjectPage> {
     );
   }
 
-  Future<String> getImageUrl(String imagePath) async {
-    if (imagePath.isEmpty) {
-      return 'assets/images/project_default_header.jpg';
-    }
-    try {
-      return await FirebaseStorage.instance.ref(imagePath).getDownloadURL();
-    } catch (e) {
-      print("Erro ao carregar URL da imagem: $e");
+  Future<String> getImageUrl(String imageUrl) async {
+    if (imageUrl.isNotEmpty) {
+      // Caso `headerImageUrl` já seja uma URL completa, retorna diretamente
+      print("Carregando imagem do projeto a partir de URL: $imageUrl");
+      return imageUrl;
+    } else {
+      // Caso contrário, retorna a imagem padrão
+      print("URL vazia, carregando imagem padrão.");
       return 'assets/images/project_default_header.jpg';
     }
   }

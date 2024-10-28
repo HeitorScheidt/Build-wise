@@ -58,14 +58,19 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   }
 
   // Método para fazer o upload da imagem de perfil
+// Método para fazer o upload da imagem de perfil
   Future<void> _onUploadProfileImage(
       UploadProfileImage event, Emitter<ProfileState> emit) async {
     emit(ProfileImageUploading());
     try {
       print(
           "Fazendo upload da imagem de perfil para o ID do usuário: ${event.userId}");
+
+      // Realiza o upload da imagem
       await profileService.uploadProfileImage(event.imageFile);
       print("Upload da imagem de perfil realizado com sucesso.");
+
+      // Emite o estado indicando que o upload da imagem foi concluído
       emit(ProfileImageUploaded());
     } catch (e) {
       print("Erro ao fazer upload da imagem de perfil: $e");

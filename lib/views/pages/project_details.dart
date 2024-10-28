@@ -32,69 +32,50 @@ class _ProjectDetailsState extends State<ProjectDetails> {
   void initState() {
     super.initState();
     _loadSavedImages();
+    _loadFirstClientName();
   }
 
   Future<void> _loadSavedImages() async {
     try {
-      final projectId = widget.project.id;
-
-      // Buscar o documento do projeto diretamente da coleção 'projects'
-      final projectDoc =
-          await _firestore.collection('projects').doc(projectId).get();
-
-      if (projectDoc.exists) {
+      if (widget.project.headerImageUrl?.isNotEmpty ?? false) {
         setState(() {
-          _headerImageUrl = projectDoc.data()?['headerImageUrl'];
+          _headerImageUrl = widget.project.headerImageUrl;
         });
-        print("Header image URL loaded: $_headerImageUrl");
-      }
-
-      if (_headerImageUrl == null) {
+      } else {
         final defaultHeaderUrl = await FirebaseStorage.instance
             .ref('default/project_default_header.jpg')
             .getDownloadURL();
         setState(() => _headerImageUrl = defaultHeaderUrl);
-        print("Default header image URL loaded: $defaultHeaderUrl");
       }
-
-      // Carregar imagem do cliente associada ao projeto
-      await _loadFirstClientImage();
+      print("Header image URL loaded: $_headerImageUrl");
     } catch (e) {
-      print("Failed to load images: $e");
+      print("Failed to load header image: $e");
     }
   }
 
-  Future<void> _loadFirstClientImage() async {
+  Future<void> _loadFirstClientName() async {
     try {
-      final projectId = widget.project.id;
+      if (widget.project.clients != null &&
+          widget.project.clients!.isNotEmpty) {
+        final clientId = widget.project.clients!.first;
+        final clientDoc =
+            await _firestore.collection('users').doc(clientId).get();
 
-      final projectSnapshot = await _firestore
-          .collection('users')
-          .where('projects', arrayContains: projectId)
-          .limit(1)
-          .get();
-
-      if (projectSnapshot.docs.isNotEmpty) {
-        final clientData = projectSnapshot.docs.first.data();
+        if (clientDoc.exists) {
+          setState(() {
+            _clientName =
+                "${clientDoc.data()?['name'] ?? 'Sem nome'} ${clientDoc.data()?['lastName'] ?? ''}";
+            _clientImageUrl = clientDoc.data()?['profileImageUrl'];
+          });
+        }
+      } else {
         setState(() {
-          _clientImageUrl = clientData['profileImageUrl'] ?? '';
-          _clientName =
-              "${clientData['name'] ?? 'Sem nome'} ${clientData['lastName'] ?? 'Sem sobrenome'}";
+          _clientName = 'client name';
         });
-
-        print("Client image URL: $_clientImageUrl");
-        print("Client name: $_clientName");
       }
-
-      if (_clientImageUrl == null) {
-        final defaultClientUrl = await FirebaseStorage.instance
-            .ref('default/client.jpg')
-            .getDownloadURL();
-        setState(() => _clientImageUrl = defaultClientUrl);
-        print("Default client image URL loaded: $defaultClientUrl");
-      }
+      print("Client name loaded: $_clientName");
     } catch (e) {
-      print("Failed to load client image: $e");
+      print("Failed to load client name: $e");
     }
   }
 
@@ -122,13 +103,6 @@ class _ProjectDetailsState extends State<ProjectDetails> {
       final projectId = widget.project.id;
 
       final ref = FirebaseStorage.instance.ref('projects/$projectId/$type.jpg');
-
-      // Deletar imagem existente
-      final existingFiles = await ref.listAll();
-      for (var file in existingFiles.items) {
-        await file.delete();
-      }
-
       await ref.putFile(imageFile);
       String url = await ref.getDownloadURL();
 
@@ -175,9 +149,11 @@ class _ProjectDetailsState extends State<ProjectDetails> {
                     height: 250,
                     decoration: BoxDecoration(
                       image: DecorationImage(
-                        image: _headerImageUrl != null
+                        image: (_headerImageUrl != null &&
+                                _headerImageUrl!.isNotEmpty)
                             ? NetworkImage(_headerImageUrl!)
-                            : const AssetImage('assets/default_image.jpg')
+                            : AssetImage(
+                                    'assets/images/project_default_header.jpg')
                                 as ImageProvider,
                         fit: BoxFit.cover,
                       ),
@@ -193,10 +169,11 @@ class _ProjectDetailsState extends State<ProjectDetails> {
                   children: [
                     CircleAvatar(
                       radius: 50,
-                      backgroundImage: _clientImageUrl != null
-                          ? NetworkImage(_clientImageUrl!)
-                          : const AssetImage('assets/images/default_client.jpg')
-                              as ImageProvider,
+                      backgroundImage:
+                          _clientImageUrl != null && _clientImageUrl!.isNotEmpty
+                              ? NetworkImage(_clientImageUrl!)
+                              : AssetImage('assets/images/default_client.png')
+                                  as ImageProvider,
                     ),
                     SizedBox(height: 6),
                     Row(
@@ -244,7 +221,7 @@ class _ProjectDetailsState extends State<ProjectDetails> {
               children: [
                 Text(widget.project.name ?? 'No Project Name',
                     style: appWidget.headerLineTextFieldStyle()),
-                Row(
+                /*Row(
                   children: [
                     Icon(Icons.location_on_rounded, color: Colors.grey[500]),
                     Text(
@@ -252,7 +229,7 @@ class _ProjectDetailsState extends State<ProjectDetails> {
                       style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                     ),
                   ],
-                ),
+                ),*/
                 Row(
                   children: [
                     Icon(Icons.attach_money, color: Colors.grey[500]),
@@ -271,10 +248,10 @@ class _ProjectDetailsState extends State<ProjectDetails> {
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    return Wrap(
-      spacing: 8.0,
-      runSpacing: 16.0,
-      alignment: WrapAlignment.start,
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
       children: [
         _buildActionButton('360', Icons.threed_rotation, Colors.orange, context,
             () {
@@ -284,14 +261,36 @@ class _ProjectDetailsState extends State<ProjectDetails> {
         _buildActionButton(
             'Fornecedores', Icons.people, Colors.green, context, () {}),
         _buildActionButton(
-            'Cash Flow', Icons.attach_money, Colors.blue, context, () {
-          Navigator.pushNamed(context, '/cashflow_page',
-              arguments: {'projectId': widget.project.id});
-        }),
+          'Cash Flow',
+          Icons.attach_money,
+          Colors.blue,
+          context,
+          () {
+            // Verifique que os valores não são nulos antes de navegar
+            if (widget.project.id != null && widget.project.userId != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CashflowPage(
+                    userId: widget.project.userId!,
+                    projectId: widget.project.id!,
+                  ),
+                ),
+              );
+            } else {
+              print('Erro: userId ou projectId é nulo.');
+              // Opcional: exibir uma mensagem de erro para o usuário
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Erro: userId ou projectId é nulo.')),
+              );
+            }
+          },
+        ),
         _buildActionButton('Projetos', Icons.drive_file_rename_outline_sharp,
             Colors.grey, context, () {
-          Navigator.pushNamed(context, '/folder_page',
-              arguments: {'projectId': widget.project.id});
+          Navigator.pushNamed(context, '/cashflow_page', arguments: {
+            'projectId': widget.project.id ?? 'unknown_project_id'
+          });
         }),
         _buildActionButton(
             'Diário de Obra', Icons.note_alt, Colors.purple, context, () {
@@ -311,6 +310,7 @@ class _ProjectDetailsState extends State<ProjectDetails> {
     return InkWell(
       onTap: onPressed,
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircleAvatar(
             backgroundColor: color.withOpacity(0.2),

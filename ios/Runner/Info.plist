@@ -4,6 +4,10 @@
 <dict>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Este aplicativo precisa acessar suas fotos.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Este aplicativo requer acesso à câmera.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Este aplicativo requer acesso à biblioteca de fotos.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Este aplicativo precisa salvar fotos.</string>
 	<key>CFBundleDevelopmentRegion</key>

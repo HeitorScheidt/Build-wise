@@ -7,11 +7,9 @@ class CashflowService {
   Future<void> addCashflow(
       String userId, String projectId, Cashflow cashflow) async {
     await _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
-        .collection('cashflows')
+        .collection('cashflow')
         .doc(cashflow.id)
         .set(cashflow.toMap());
   }
@@ -19,11 +17,9 @@ class CashflowService {
   Future<void> updateCashflow(
       String userId, String projectId, Cashflow cashflow) async {
     await _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
-        .collection('cashflows')
+        .collection('cashflow')
         .doc(cashflow.id)
         .update(cashflow.toMap());
   }
@@ -31,22 +27,18 @@ class CashflowService {
   Future<void> deleteCashflow(
       String userId, String projectId, String cashflowId) async {
     await _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
-        .collection('cashflows')
+        .collection('cashflow')
         .doc(cashflowId)
         .delete();
   }
 
   Stream<List<Cashflow>> getCashflows(String userId, String projectId) {
     return _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
-        .collection('cashflows')
+        .collection('cashflow')
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {

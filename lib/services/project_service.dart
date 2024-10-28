@@ -26,6 +26,23 @@ class ProjectService {
         .toList();
   }
 
+  Future<List<ProjectModel>> getProjectsByClientOrArchitect(
+      String userId, String role) async {
+    Query query = _firestore.collection('projects');
+
+    if (role == 'arquiteto') {
+      query = query.where('architectId', isEqualTo: userId);
+    } else if (role == 'cliente') {
+      query = query.where('clients', arrayContains: userId);
+    }
+
+    QuerySnapshot snapshot = await query.get();
+    return snapshot.docs
+        .map((doc) =>
+            ProjectModel.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+        .toList();
+  }
+
   // Obter todos os projetos por ID do usuário
   Future<List<ProjectModel>> getProjects() async {
     try {

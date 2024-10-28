@@ -9,8 +9,6 @@ class GalleryService {
 
   Future<List<Photo>> getPhotos(String userId, String projectId) async {
     final snapshot = await _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
         .collection('gallery')
@@ -31,8 +29,6 @@ class GalleryService {
       final fileUrl = await ref.getDownloadURL();
 
       await _firestore
-          .collection('users')
-          .doc(userId)
           .collection('projects')
           .doc(projectId)
           .collection('gallery')
@@ -53,8 +49,6 @@ class GalleryService {
       }
 
       await _firestore
-          .collection('users')
-          .doc(userId)
           .collection('projects')
           .doc(projectId)
           .collection('gallery')

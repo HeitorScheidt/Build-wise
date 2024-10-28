@@ -14,11 +14,16 @@ class GalleryBloc extends Bloc<GalleryEvent, GalleryState> {
       try {
         final photos =
             await _galleryService.getPhotos(event.userId, event.projectId);
-        if (photos.isEmpty) {
-          emit(GalleryError(
-              "No photos available")); // Adiciona uma mensagem clara
+
+        // Filtra fotos inválidas (com URL nula ou vazia)
+        final validPhotos = photos
+            .where((photo) => photo.url != null && photo.url.isNotEmpty)
+            .toList();
+
+        if (validPhotos.isEmpty) {
+          emit(GalleryError("No valid photos available"));
         } else {
-          emit(GalleryLoaded(photos));
+          emit(GalleryLoaded(validPhotos));
         }
       } catch (e) {
         emit(GalleryError("Error loading photos: ${e.toString()}"));
@@ -28,10 +33,14 @@ class GalleryBloc extends Bloc<GalleryEvent, GalleryState> {
     // Evento para adicionar fotos
     on<AddPhoto>((event, emit) async {
       try {
-        await _galleryService.addPhoto(
-            event.userId, event.projectId, event.filePath);
-        add(LoadPhotos(event.userId,
-            event.projectId)); // Recarrega as fotos após adicionar
+        if (event.filePath.isNotEmpty) {
+          await _galleryService.addPhoto(
+              event.userId, event.projectId, event.filePath);
+          add(LoadPhotos(event.userId,
+              event.projectId)); // Recarrega as fotos após adicionar
+        } else {
+          emit(GalleryError("Invalid file path provided"));
+        }
       } catch (e) {
         emit(GalleryError("Error adding photo: ${e.toString()}"));
       }
@@ -40,10 +49,14 @@ class GalleryBloc extends Bloc<GalleryEvent, GalleryState> {
     // Evento para deletar fotos
     on<DeletePhoto>((event, emit) async {
       try {
-        await _galleryService.deletePhoto(
-            event.userId, event.projectId, event.photoId, event.photoUrl);
-        add(LoadPhotos(
-            event.userId, event.projectId)); // Recarrega as fotos após exclusão
+        if (event.photoUrl.isNotEmpty) {
+          await _galleryService.deletePhoto(
+              event.userId, event.projectId, event.photoId, event.photoUrl);
+          add(LoadPhotos(event.userId,
+              event.projectId)); // Recarrega as fotos após exclusão
+        } else {
+          emit(GalleryError("Invalid photo URL for deletion"));
+        }
       } catch (e) {
         emit(GalleryError("Failed to delete photo: ${e.toString()}"));
       }

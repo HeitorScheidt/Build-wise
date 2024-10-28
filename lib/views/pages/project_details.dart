@@ -255,18 +255,39 @@ class _ProjectDetailsState extends State<ProjectDetails> {
       children: [
         _buildActionButton('360', Icons.threed_rotation, Colors.orange, context,
             () {
-          Navigator.pushNamed(context, '/link_page',
-              arguments: {'projectId': widget.project.id});
+          if (widget.project.id != null && widget.project.userId != null) {
+            Navigator.pushNamed(context, '/link_page',
+                arguments: {'projectId': widget.project.id});
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro: userId ou projectId é nulo.')),
+            );
+          }
         }),
         _buildActionButton(
-            'Fornecedores', Icons.people, Colors.green, context, () {}),
+          'Fornecedores',
+          Icons.people,
+          Colors.green,
+          context,
+          () {
+            if (widget.project.id != null && widget.project.userId != null) {
+              Navigator.pushNamed(context, '/suppliers_page', arguments: {
+                'projectId': widget.project.id,
+                'userId': widget.project.userId,
+              });
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Erro: userId ou projectId é nulo.')),
+              );
+            }
+          },
+        ),
         _buildActionButton(
           'Cash Flow',
           Icons.attach_money,
           Colors.blue,
           context,
           () {
-            // Verifique que os valores não são nulos antes de navegar
             if (widget.project.id != null && widget.project.userId != null) {
               Navigator.push(
                 context,
@@ -278,8 +299,6 @@ class _ProjectDetailsState extends State<ProjectDetails> {
                 ),
               );
             } else {
-              print('Erro: userId ou projectId é nulo.');
-              // Opcional: exibir uma mensagem de erro para o usuário
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Erro: userId ou projectId é nulo.')),
               );
@@ -288,19 +307,54 @@ class _ProjectDetailsState extends State<ProjectDetails> {
         ),
         _buildActionButton('Projetos', Icons.drive_file_rename_outline_sharp,
             Colors.grey, context, () {
-          Navigator.pushNamed(context, '/cashflow_page', arguments: {
-            'projectId': widget.project.id ?? 'unknown_project_id'
-          });
+          if (widget.project.id != null) {
+            Navigator.pushNamed(context, '/cashflow_page', arguments: {
+              'projectId': widget.project.id,
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro: projectId é nulo.')),
+            );
+          }
         }),
         _buildActionButton(
-            'Diário de Obra', Icons.note_alt, Colors.purple, context, () {
-          Navigator.pushNamed(context, '/work_diary_page',
-              arguments: {'projectId': widget.project.id});
-        }),
-        _buildActionButton('Galeria', Icons.photo, Colors.brown, context, () {
-          Navigator.pushNamed(context, '/gallery_page',
-              arguments: {'projectId': widget.project.id});
-        }),
+          'Diário de Obra',
+          Icons.note_alt,
+          Colors.purple,
+          context,
+          () {
+            if (widget.project.id != null && widget.project.userId != null) {
+              Navigator.pushNamed(context, '/work_diary_page',
+                  arguments: {'projectId': widget.project.id});
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Erro: userId ou projectId é nulo.')),
+              );
+            }
+          },
+        ),
+        _buildActionButton(
+          'Galeria',
+          Icons.photo,
+          Colors.brown,
+          context,
+          () {
+            if (widget.project.id != null && widget.project.userId != null) {
+              Navigator.pushNamed(
+                context,
+                '/gallery_page',
+                arguments: {
+                  'userId': widget.project.userId,
+                  'projectId': widget.project.id,
+                },
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Erro: userId ou projectId é nulo.')),
+              );
+            }
+          },
+        ),
       ],
     );
   }

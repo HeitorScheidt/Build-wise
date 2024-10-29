@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:build_wise/utils/colors.dart';
 import 'package:build_wise/utils/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,8 +9,7 @@ import 'package:build_wise/blocs/diary/work_diary_event.dart';
 import 'package:build_wise/blocs/diary/work_diary_state.dart';
 import 'package:build_wise/models/work_diary_entry.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // Firebase Storage para upload de imagens
-import 'package:cloud_firestore/cloud_firestore.dart'; // Firestore for database access
+import 'package:firebase_storage/firebase_storage.dart';
 
 class WorkDiaryPage extends StatefulWidget {
   final String projectId;
@@ -26,11 +26,18 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
   bool wasPractical = false;
   String? selectedPeriod;
   List<XFile> selectedImages = [];
-  bool isSaving = false; // To handle state when saving
+  List<String> existingImages =
+      []; // Lista para armazenar URLs das imagens já existentes
+  bool isSaving = false;
+  WorkDiaryEntry? editingEntry;
 
   @override
   void initState() {
     super.initState();
+    _loadEntries();
+  }
+
+  void _loadEntries() {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
     context
         .read<WorkDiaryBloc>()
@@ -49,15 +56,17 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
           if (state is WorkDiaryLoading) {
             return const Center(child: CircularProgressIndicator());
           } else if (state is WorkDiaryLoaded && state.entries.isNotEmpty) {
-            return ListView.builder(
-              itemCount: state.entries.length,
-              itemBuilder: (context, index) {
-                final entry = state.entries[index];
-                return _buildWorkEntryCard(entry, index);
-              },
+            return Expanded(
+              child: ListView.builder(
+                itemCount: state.entries.length,
+                itemBuilder: (context, index) {
+                  final entry = state.entries[index];
+                  return _buildWorkEntryCard(entry, index);
+                },
+              ),
             );
           } else if (state is WorkDiaryError) {
-            return Center(child: Text(state.message)); // Show error message
+            return Center(child: Text(state.message));
           } else {
             return const Center(child: Text('Nenhuma entrada no diário.'));
           }
@@ -65,28 +74,57 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: isSaving ? null : () => _showAddEntryDialog(context),
-        child: const Icon(Icons.add),
+        backgroundColor: AppColors.primaryColor,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
   Widget _buildWorkEntryCard(WorkDiaryEntry entry, int index) {
     return Card(
+      elevation: 5.0,
       margin: EdgeInsets.all(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: EdgeInsets.all(8),
-            child: Text(
-              'Relatório de obra - ${index + 1}',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Relatório de obra - ${index + 1}',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.edit),
+                      onPressed: () {
+                        _showEditEntryDialog(entry);
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete),
+                      onPressed: () {
+                        final userId =
+                            FirebaseAuth.instance.currentUser?.uid ?? '';
+                        context.read<WorkDiaryBloc>().add(
+                            DeleteWorkDiaryEntryEvent(
+                                userId, widget.projectId, entry.entryId));
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text('Data: ${entry.date.toString().substring(0, 10)}',
-                style: TextStyle(fontSize: 16)),
+            child: Text(
+              'Data: ${entry.date.day}/${entry.date.month}/${entry.date.year}',
+              style: TextStyle(fontSize: 16),
+            ),
           ),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
@@ -94,15 +132,27 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
           ),
           SizedBox(height: 10),
           if (entry.photos.isNotEmpty)
-            Container(
-              height: 100,
+            SizedBox(
+              height: 80,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: entry.photos.length,
                 itemBuilder: (context, photoIndex) {
                   return Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Image.network(entry.photos[photoIndex]),
+                    padding: EdgeInsets.all(4),
+                    child: Material(
+                      elevation: 5.0,
+                      borderRadius: BorderRadius.circular(8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          entry.photos[photoIndex],
+                          height: 60,
+                          width: 60,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),
@@ -112,19 +162,21 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
     );
   }
 
-  void _showAddEntryDialog(BuildContext context) {
+  void _showAddEntryDialog(BuildContext context, {bool isEditing = false}) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Nova entrada no diário de obra'),
+          title: Text(
+              isEditing ? 'Editar entrada' : 'Nova entrada no diário de obra'),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setDialogState) {
               return SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Wrap(
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: ['Manhã', 'Tarde', 'Noite']
                           .map((period) => _periodSelector(
                               period, getIconData(period), setDialogState))
@@ -145,7 +197,7 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
                         icon: Icon(Icons.calendar_today),
                         labelText: selectedDate == null
                             ? 'Insira a data do relatório'
-                            : 'Data: ${selectedDate!.toIso8601String().substring(0, 10)}',
+                            : 'Data: ${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}',
                         suffixIcon: IconButton(
                           icon: Icon(Icons.date_range),
                           onPressed: () => _selectDate(context, setDialogState),
@@ -162,19 +214,41 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
                     ElevatedButton.icon(
                       icon: Icon(Icons.add_photo_alternate),
                       label: const Text('Adicione Fotos da Obra'),
-                      onPressed: _pickImages,
+                      onPressed: () async {
+                        await _pickImages(setDialogState);
+                      },
                     ),
-                    if (selectedImages.isNotEmpty)
-                      Container(
-                        height: 100,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: selectedImages.length,
-                          itemBuilder: (context, index) => Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Image.file(File(selectedImages[index].path)),
-                          ),
-                        ),
+                    // Exibir imagens existentes e novas na lista
+                    if (existingImages.isNotEmpty || selectedImages.isNotEmpty)
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          ...existingImages.map((imageUrl) {
+                            final imageName = imageUrl.split('/').last;
+                            return Chip(
+                              label: Text(imageName),
+                              deleteIcon: Icon(Icons.close, color: Colors.red),
+                              onDeleted: () {
+                                setDialogState(() {
+                                  existingImages.remove(imageUrl);
+                                });
+                              },
+                            );
+                          }).toList(),
+                          ...selectedImages.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final imageName = entry.value.name;
+                            return Chip(
+                              label: Text(imageName),
+                              deleteIcon: Icon(Icons.close, color: Colors.red),
+                              onDeleted: () {
+                                setDialogState(() {
+                                  selectedImages.removeAt(index);
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ],
                       ),
                   ],
                 ),
@@ -184,12 +258,15 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
           actions: [
             TextButton(
               child: const Text('Cancelar'),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                _clearDialogFields();
+                Navigator.of(context).pop();
+              },
             ),
             TextButton(
               child: isSaving
                   ? const CircularProgressIndicator()
-                  : const Text('Adicionar'),
+                  : Text(isEditing ? 'Atualizar' : 'Adicionar'),
               onPressed: () async {
                 if (selectedPeriod != null &&
                     descriptionController.text.isNotEmpty &&
@@ -198,33 +275,36 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
                     isSaving = true;
                   });
 
-                  // Upload de imagens para Firebase Storage e obtenção das URLs
                   List<String> uploadedImageUrls = await _uploadImages();
+                  final allImages = [...existingImages, ...uploadedImageUrls];
 
-                  // Pegar o nome do usuário atual
-                  String? username =
-                      FirebaseAuth.instance.currentUser?.displayName ??
-                          'Usuário';
-
-                  // Criação da entrada no Firestore com as URLs das imagens e data selecionada
                   final entry = WorkDiaryEntry(
+                    entryId: isEditing ? editingEntry!.entryId : "",
                     period: selectedPeriod!,
                     wasPractical: wasPractical,
-                    userName: username, // Guardar ${username} corretamente
+                    userName: FirebaseAuth.instance.currentUser?.displayName ??
+                        'Usuário',
                     description: descriptionController.text,
                     date: selectedDate!,
-                    photos: uploadedImageUrls,
+                    photos: allImages,
                   );
 
-                  context.read<WorkDiaryBloc>().add(AddWorkDiaryEntryEvent(
-                      FirebaseAuth.instance.currentUser?.uid ?? '',
-                      widget.projectId,
-                      entry));
+                  final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+                  if (isEditing) {
+                    context.read<WorkDiaryBloc>().add(UpdateWorkDiaryEntryEvent(
+                        userId, widget.projectId, entry));
+                  } else {
+                    context.read<WorkDiaryBloc>().add(AddWorkDiaryEntryEvent(
+                        userId, widget.projectId, entry));
+                  }
 
                   setState(() {
                     isSaving = false;
                   });
+
                   Navigator.of(context).pop();
+                  _loadEntries();
+                  _clearDialogFields();
                 }
               },
             ),
@@ -232,6 +312,29 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
         );
       },
     );
+  }
+
+  void _showEditEntryDialog(WorkDiaryEntry entry) {
+    setState(() {
+      editingEntry = entry;
+      selectedPeriod = entry.period;
+      descriptionController.text = entry.description;
+      selectedDate = entry.date;
+      wasPractical = entry.wasPractical;
+      existingImages = List.from(entry.photos); // Carrega as imagens existentes
+      selectedImages.clear();
+    });
+
+    _showAddEntryDialog(context, isEditing: true);
+  }
+
+  void _clearDialogFields() {
+    descriptionController.clear();
+    selectedDate = null;
+    selectedPeriod = null;
+    selectedImages.clear();
+    existingImages.clear();
+    editingEntry = null;
   }
 
   Future<List<String>> _uploadImages() async {
@@ -243,7 +346,6 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
           .child('work_diary/${DateTime.now().millisecondsSinceEpoch}.jpg');
       final uploadTask = storageRef.putFile(file);
 
-      // Aguarda o upload e recupera a URL de download
       final snapshot = await uploadTask.whenComplete(() {});
       final downloadUrl = await snapshot.ref.getDownloadURL();
       downloadUrls.add(downloadUrl);
@@ -251,11 +353,11 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
     return downloadUrls;
   }
 
-  Future<void> _pickImages() async {
+  Future<void> _pickImages(StateSetter setDialogState) async {
     final ImagePicker picker = ImagePicker();
     final List<XFile>? images = await picker.pickMultiImage();
     if (images != null && images.isNotEmpty) {
-      setState(() {
+      setDialogState(() {
         selectedImages = images;
       });
     }
@@ -285,7 +387,7 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
       },
       child: Container(
         margin: EdgeInsets.all(4),
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? Colors.blue : Colors.white,
           borderRadius: BorderRadius.circular(30),
@@ -295,7 +397,7 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(iconData),
-            SizedBox(width: 8),
+            SizedBox(width: 4),
             Text(period,
                 style:
                     TextStyle(color: isSelected ? Colors.white : Colors.black)),

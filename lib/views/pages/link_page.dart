@@ -6,7 +6,9 @@ import 'package:build_wise/utils/colors.dart';
 import 'package:build_wise/utils/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:url_launcher/url_launcher.dart'; // Adicionar a dependência do url_launcher
+import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import 'package:build_wise/providers/user_role_provider.dart';
 
 class LinkPage extends StatelessWidget {
   final String userId;
@@ -16,6 +18,8 @@ class LinkPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userRole = Provider.of<UserRoleProvider>(context).role;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Links dos Cômodos',
@@ -33,35 +37,35 @@ class LinkPage extends StatelessWidget {
                 return ListTile(
                   leading: Icon(Icons.link, color: AppColors.primaryColor),
                   title: Text(link.roomName,
-                      style: appWidget
-                          .boldLineTextFieldStyle()), // Aplicando o estilo
+                      style: appWidget.boldLineTextFieldStyle()),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: Icon(Icons.edit, color: AppColors.primaryColor),
-                        onPressed: () {
-                          _showEditLinkDialog(context, userId, projectId, link);
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete, color: AppColors.primaryColor),
-                        onPressed: () {
-                          context
-                              .read<LinkBloc>()
-                              .add(DeleteLink(userId, projectId, link.id));
-                        },
-                      ),
+                      if (userRole != 'Cliente')
+                        IconButton(
+                          icon: Icon(Icons.edit, color: AppColors.primaryColor),
+                          onPressed: () {
+                            _showEditLinkDialog(
+                                context, userId, projectId, link);
+                          },
+                        ),
+                      if (userRole != 'Cliente')
+                        IconButton(
+                          icon:
+                              Icon(Icons.delete, color: AppColors.primaryColor),
+                          onPressed: () {
+                            context
+                                .read<LinkBloc>()
+                                .add(DeleteLink(userId, projectId, link.id));
+                          },
+                        ),
                     ],
                   ),
                   onTap: () async {
-                    // Redirecionar para o link do cômodo (abrir em um navegador)
                     final url = link.linkUrl;
-
                     if (await canLaunch(url)) {
                       await launch(url);
                     } else {
-                      // Exibir mensagem de erro se o link for inválido
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                             content: Text('Não foi possível abrir o link.')),
@@ -78,14 +82,16 @@ class LinkPage extends StatelessWidget {
           }
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showAddLinkDialog(context, userId, projectId);
-        },
-        child: Icon(Icons.add, color: Colors.white),
-        backgroundColor: AppColors.primaryColor,
-        shape: CircleBorder(), // Tornando o botão 100% arredondado
-      ),
+      floatingActionButton: userRole != 'Cliente'
+          ? FloatingActionButton(
+              onPressed: () {
+                _showAddLinkDialog(context, userId, projectId);
+              },
+              child: Icon(Icons.add, color: Colors.white),
+              backgroundColor: AppColors.primaryColor,
+              shape: CircleBorder(),
+            )
+          : null,
     );
   }
 }
@@ -115,13 +121,12 @@ void _showAddLinkDialog(BuildContext context, String userId, String projectId) {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop(); // Fecha o diálogo
+              Navigator.of(context).pop();
             },
             child: Text('Cancelar'),
           ),
           TextButton(
             onPressed: () {
-              // Envia o evento de adição de link para o BLoC
               final roomName = roomNameController.text.trim();
               final linkUrl = linkUrlController.text.trim();
 
@@ -129,12 +134,9 @@ void _showAddLinkDialog(BuildContext context, String userId, String projectId) {
                 context.read<LinkBloc>().add(AddLink(
                       userId,
                       projectId,
-                      LinkModel(
-                          id: '',
-                          roomName: roomName,
-                          linkUrl: linkUrl), // id será gerado pelo Firebase
+                      LinkModel(id: '', roomName: roomName, linkUrl: linkUrl),
                     ));
-                Navigator.of(context).pop(); // Fecha o diálogo
+                Navigator.of(context).pop();
               }
             },
             child: Text('Adicionar'),
@@ -173,7 +175,7 @@ void _showEditLinkDialog(
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop(); // Fecha o diálogo
+              Navigator.of(context).pop();
             },
             child: Text('Cancelar'),
           ),
@@ -192,7 +194,7 @@ void _showEditLinkDialog(
                         linkUrl: updatedLinkUrl,
                       ),
                     ));
-                Navigator.of(context).pop(); // Fecha o diálogo
+                Navigator.of(context).pop();
               }
             },
             child: Text('Salvar'),

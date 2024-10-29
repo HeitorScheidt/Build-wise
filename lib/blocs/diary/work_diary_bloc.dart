@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:build_wise/services/work_diary_service.dart';
 import 'package:build_wise/blocs/diary/work_diary_event.dart';
@@ -40,6 +41,56 @@ class WorkDiaryBloc extends Bloc<WorkDiaryEvent, WorkDiaryState> {
             updatedEntries)); // Emitir o estado de carregamento atualizado
       } catch (e) {
         emit(WorkDiaryError('Erro ao adicionar nova entrada: ${e.toString()}'));
+      }
+    });
+
+    on<EditWorkDiaryEntryEvent>((event, emit) async {
+      try {
+        await workDiaryService.updateWorkDiaryEntry(
+            event.projectId, event.entryId, event.updatedEntry);
+        final updatedEntries = await workDiaryService.loadWorkDiaryEntries(
+            event.userId, event.projectId);
+        emit(WorkDiaryLoaded(updatedEntries));
+      } catch (e) {
+        emit(WorkDiaryError('Erro ao editar a entrada: $e'));
+      }
+    });
+
+    on<UpdateWorkDiaryEntryEvent>((event, emit) async {
+      try {
+        await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(event.projectId)
+            .collection('workdiary')
+            .doc(event.entry.entryId)
+            .update(event.entry.toFirestore());
+
+        // Recarrega as entradas para atualizar a interface
+        final snapshot = await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(event.projectId)
+            .collection('workdiary')
+            .get();
+
+        final entries = snapshot.docs
+            .map((doc) => WorkDiaryEntry.fromDocument(doc))
+            .toList();
+
+        emit(WorkDiaryLoaded(entries));
+      } catch (e) {
+        emit(WorkDiaryError('Erro ao atualizar a entrada: $e'));
+      }
+    });
+
+    on<DeleteWorkDiaryEntryEvent>((event, emit) async {
+      try {
+        await workDiaryService.deleteWorkDiaryEntry(
+            event.projectId, event.entryId);
+        final updatedEntries = await workDiaryService.loadWorkDiaryEntries(
+            event.userId, event.projectId);
+        emit(WorkDiaryLoaded(updatedEntries));
+      } catch (e) {
+        emit(WorkDiaryError('Erro ao excluir a entrada: $e'));
       }
     });
   }

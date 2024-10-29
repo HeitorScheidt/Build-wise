@@ -19,8 +19,6 @@ class FileService {
         .size; // Corrigido de 'sizeBytes' para 'size'
 
     await _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
         .collection('projectFiles')
@@ -33,8 +31,6 @@ class FileService {
 
   Future<List<ProjectFile>> fetchFiles(String userId, String projectId) async {
     final snapshot = await _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
         .collection('projectFiles')
@@ -52,8 +48,6 @@ class FileService {
         .child('user/$userId/projects/$projectId/projectFiles/$fileName');
     await ref.delete();
     await _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
         .collection('projectFiles')

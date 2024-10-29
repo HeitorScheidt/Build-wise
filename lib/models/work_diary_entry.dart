@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class WorkDiaryEntry {
+  final String entryId;
   final String period;
   final bool wasPractical;
   final String userName;
@@ -9,6 +10,7 @@ class WorkDiaryEntry {
   final List<String> photos;
 
   WorkDiaryEntry({
+    required this.entryId,
     required this.period,
     required this.wasPractical,
     required this.userName,
@@ -17,34 +19,19 @@ class WorkDiaryEntry {
     this.photos = const [],
   });
 
+  // Converte a entrada para JSON, por exemplo, para exibição ou serialização geral
   Map<String, dynamic> toJson() {
     return {
       'period': period,
       'wasPractical': wasPractical,
       'userName': userName,
       'description': description,
-      'date': date.toIso8601String(), // Serializing to ISO-8601 string format
+      'date': date.toIso8601String(),
       'photos': photos,
     };
   }
 
-  static WorkDiaryEntry fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
-    var data = doc.data()!;
-    return WorkDiaryEntry(
-      period: data['period'] as String,
-      wasPractical: data['wasPractical'] as bool,
-      userName: data['userName'] as String,
-      description: data['description'] as String,
-      date: data['date'] != null
-          ? (data['date'] as Timestamp).toDate()
-          : DateTime.now(),
-      //date: (data['date'] as Timestamp).toDate(),
-      photos: List<String>.from(data['photos'] ?? []),
-      //photos: List<String>.from(data['photos'] as List<dynamic>),
-    );
-  }
-
+  // Converte a entrada para ser usada no Firestore, com data em formato Timestamp
   Map<String, dynamic> toFirestore() {
     return {
       'period': period,
@@ -54,5 +41,22 @@ class WorkDiaryEntry {
       'date': Timestamp.fromDate(date),
       'photos': photos,
     };
+  }
+
+  // Método para criar uma instância de WorkDiaryEntry a partir de um documento do Firestore
+  factory WorkDiaryEntry.fromDocument(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
+    var data = doc.data()!;
+    return WorkDiaryEntry(
+      entryId: doc.id,
+      period: data['period'] ?? '',
+      wasPractical: data['wasPractical'] ?? false,
+      userName: data['userName'] ?? '',
+      description: data['description'] ?? '',
+      date: data['date'] != null
+          ? (data['date'] as Timestamp).toDate()
+          : DateTime.now(),
+      photos: List<String>.from(data['photos'] ?? []),
+    );
   }
 }

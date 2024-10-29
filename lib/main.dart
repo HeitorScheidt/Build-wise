@@ -141,18 +141,19 @@ class MyApp extends StatelessWidget {
             return ConfirmEmailPage(user: user);
           },
 
-          /* '/link_page': (context) {
+          '/link_page': (context) {
             final args = ModalRoute.of(context)!.settings.arguments
                 as Map<String, dynamic>;
             return BlocProvider(
-              create: (context) => LinkBloc(
-                LinkService(),
-              )..add(LoadLinks(args['projectId'])), // Removi o userId
+              create: (context) => LinkBloc(LinkService())
+                ..add(LoadLinks(args['userId'] ?? 'defaultUserId',
+                    args['projectId'] ?? 'defaultProjectId')),
               child: LinkPage(
                 projectId: args['projectId'],
+                userId: args['userId'],
               ),
             );
-          },*/
+          },
 
           '/cronograma_page': (context) {
             final args = ModalRoute.of(context)!.settings.arguments

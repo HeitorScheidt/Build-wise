@@ -8,9 +8,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:build_wise/services/file_service.dart';
-import 'package:url_launcher/url_launcher.dart'; // Para abrir a URL de download
+import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import 'package:build_wise/providers/user_role_provider.dart';
 
 class FolderPage extends StatelessWidget {
+  static FolderPage fromRouteArguments(Map<String, dynamic> arguments) {
+    final userId = arguments['userId'] as String?;
+    final projectId = arguments['projectId'] as String?;
+    if (userId == null ||
+        userId.isEmpty ||
+        projectId == null ||
+        projectId.isEmpty) {
+      throw ArgumentError(
+          'userId e projectId são obrigatórios e não podem ser vazios.');
+    }
+    return FolderPage(userId: userId, projectId: projectId);
+  }
+
   final String userId;
   final String projectId;
 
@@ -19,11 +34,11 @@ class FolderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Creating a new FileBloc instance for each project to avoid state sharing across projects
+    final userRole = Provider.of<UserRoleProvider>(context).role;
+
     return BlocProvider(
-      create: (context) => FileBloc(FileService())
-        ..add(FetchFiles(
-            userId, projectId)), // Fetch files for the specific project
+      create: (context) =>
+          FileBloc(FileService())..add(FetchFiles(userId, projectId)),
       child: Scaffold(
         appBar: AppBar(
           title: Text('Arquivos do Projeto',
@@ -40,20 +55,31 @@ class FolderPage extends StatelessWidget {
                   ProjectFile file = state.files[index];
                   return ListTile(
                     title: Text(file.name),
-                    subtitle: Text('Tamanho: ${file.size} bytes'),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete),
-                      onPressed: () {
-                        context.read<FileBloc>().add(
-                            DeleteFile(userId, projectId, file.id, file.name));
-                      },
+                    subtitle: Text('Tamanho: ${_formatFileSize(file.size)}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (userRole != 'Cliente')
+                          IconButton(
+                            icon: Icon(Icons.edit),
+                            onPressed: () {
+                              // Código para editar o arquivo (implementação específica)
+                            },
+                          ),
+                        if (userRole != 'Cliente')
+                          IconButton(
+                            icon: Icon(Icons.delete),
+                            onPressed: () {
+                              context.read<FileBloc>().add(DeleteFile(
+                                  userId, projectId, file.id, file.name));
+                            },
+                          ),
+                      ],
                     ),
                     onTap: () async {
-                      // Baixar arquivo quando clicado usando url_launcher
                       final url = file.downloadUrl;
                       if (await canLaunch(url)) {
-                        await launch(
-                            url); // Abre o arquivo no navegador ou app padrão
+                        await launch(url);
                       } else {
                         throw 'Could not launch $url';
                       }
@@ -68,48 +94,49 @@ class FolderPage extends StatelessWidget {
             }
           },
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () async {
-            // Código para selecionar arquivo e fazer upload
-            final filePath = await pickFile(); // Função para escolher o arquivo
-
-            if (filePath != null) {
-              // Verifica se o caminho do arquivo não é nulo
-              final fileName =
-                  getFileNameFromPath(filePath); // Extrair nome do arquivo
-
-              // Upload do arquivo
-              context
-                  .read<FileBloc>()
-                  .add(UploadFile(userId, projectId, filePath, fileName));
-
-              // Atualizar a lista de arquivos após o upload
-              context.read<FileBloc>().add(FetchFiles(userId, projectId));
-            }
-          },
-          child: Icon(Icons.add, color: Colors.white),
-          backgroundColor: AppColors.primaryColor,
-          shape: CircleBorder(), // Tornando o botão 100% arredondado
-        ),
+        floatingActionButton: userRole != 'Cliente'
+            ? FloatingActionButton(
+                onPressed: () async {
+                  final filePath = await pickFile();
+                  if (filePath != null) {
+                    final fileName = getFileNameFromPath(filePath);
+                    context
+                        .read<FileBloc>()
+                        .add(UploadFile(userId, projectId, filePath, fileName));
+                    context.read<FileBloc>().add(FetchFiles(userId, projectId));
+                  }
+                },
+                child: Icon(Icons.add, color: Colors.white),
+                backgroundColor: AppColors.primaryColor,
+                shape: CircleBorder(),
+              )
+            : null,
       ),
     );
   }
 
-  // Função para escolher o arquivo
   Future<String?> pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-
+    FilePickerResult? result = await FilePicker.platform
+        .pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
     if (result != null) {
-      return result.files.single.path; // Caminho do arquivo selecionado
+      return result.files.single.path;
     }
-    return null; // Retorna null se o usuário cancelar a seleção
+    return null;
   }
 
-  // Função para obter o nome do arquivo a partir do caminho
   String getFileNameFromPath(String filePath) {
-    return filePath.split('/').last; // Retorna o nome do arquivo
+    return filePath.split('/').last;
+  }
+
+  String _formatFileSize(int size) {
+    if (size >= 1073741824) {
+      return '${(size / 1073741824).toStringAsFixed(2)} GB';
+    } else if (size >= 1048576) {
+      return '${(size / 1048576).toStringAsFixed(2)} MB';
+    } else if (size >= 1024) {
+      return '${(size / 1024).toStringAsFixed(2)} KB';
+    } else {
+      return '$size bytes';
+    }
   }
 }

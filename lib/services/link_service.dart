@@ -8,8 +8,6 @@ class LinkService {
   Future<void> addLink(
       String userId, String projectId, String roomName, String linkUrl) async {
     final docRef = _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
         .collection('link')
@@ -27,8 +25,6 @@ class LinkService {
   // Método para atualizar um link
   Future<void> updateLink(String userId, String projectId, LinkModel link) {
     return _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
         .collection('link')
@@ -39,8 +35,6 @@ class LinkService {
   // Método para excluir um link
   Future<void> deleteLink(String userId, String projectId, String linkId) {
     return _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
         .collection('link')
@@ -51,8 +45,6 @@ class LinkService {
   // Método para buscar todos os links
   Stream<List<LinkModel>> getLinks(String userId, String projectId) {
     return _firestore
-        .collection('users')
-        .doc(userId)
         .collection('projects')
         .doc(projectId)
         .collection('link')

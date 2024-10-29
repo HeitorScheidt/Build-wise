@@ -10,6 +10,14 @@ class appWidget {
         fontFamily: "Poppins");
   }
 
+  static TextStyle normalTextFieldStyle() {
+    return const TextStyle(
+      fontSize: 16, // Tamanho padrão
+      color: AppColors.primaryColor, // Cor do texto
+      fontWeight: FontWeight.normal, // Peso do texto
+    );
+  }
+
   static TextStyle headerLineTextFieldStyle() {
     return const TextStyle(
         color: AppColors.primaryColor,

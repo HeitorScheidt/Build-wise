@@ -30,45 +30,89 @@ class ProfileService {
     return null;
   }
 
-  // Faz o upload da imagem de perfil para o usuário
+// Faz o upload da imagem de perfil para o Firebase Storage e atualiza a URL no Firestore
   Future<void> uploadProfileImage(File imageFile) async {
-    if (user == null) {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
       print("Usuário não autenticado.");
       return;
     }
 
-    String docId = 'users/${user!.uid}';
+    String userId = currentUser.uid;
+    String storagePath = 'users/$userId/profileImage';
 
     try {
-      Reference storageReference = _storage.ref().child('$docId/profileImage');
-      UploadTask uploadTask = storageReference.putFile(imageFile);
-      TaskSnapshot snapshot = await uploadTask;
-      String downloadUrl = await snapshot.ref.getDownloadURL();
+      // Define a referência no Firebase Storage
+      print("Iniciando upload para o Storage...");
+      Reference storageReference = _storage.ref().child(storagePath);
 
-      // Atualiza o caminho correto com a URL da imagem
-      await _firestore.collection('users').doc(user!.uid).update({
+      // Realiza o upload da imagem com timeout
+      UploadTask uploadTask = storageReference.putFile(
+        imageFile,
+        SettableMetadata(
+          cacheControl: "public,max-age=300", // Cache para 5 minutos
+        ),
+      );
+
+      // Timeout após 2 minutos
+      final TaskSnapshot snapshot = await uploadTask.timeout(
+        const Duration(minutes: 2),
+        onTimeout: () {
+          print("Timeout do upload - tentando novamente...");
+          throw FirebaseException(
+            plugin: 'firebase_storage',
+            message:
+                'O upload excedeu o tempo limite. Por favor, tente novamente.',
+          );
+        },
+      );
+
+      print("Upload concluído. Obtendo URL...");
+
+      // Obtém a URL pública da imagem
+      String downloadUrl = await snapshot.ref.getDownloadURL();
+      print("URL da imagem obtida: $downloadUrl");
+
+      // Atualiza o Firestore com a URL da imagem de perfil
+      print("Salvando URL no Firestore...");
+      await _firestore.collection('users').doc(userId).update({
         'profileImageUrl': downloadUrl,
       });
-      print("Upload de imagem de perfil concluído.");
+
+      print("Upload de imagem de perfil concluído e URL salva no Firestore.");
     } catch (e) {
       print("Erro ao fazer o upload da imagem: $e");
     }
   }
 
-  // Busca dados do perfil do usuário
-// Método simplificado de buscar dados do perfil
-// profile_service.dart
+  // Busca dados do perfil do usuário com verificação e criação do campo profileImageUrl
   Future<Map<String, dynamic>?> fetchProfileData() async {
-    User? currentUser = FirebaseAuth.instance.currentUser; // Força atualização
+    User? currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       print("Usuário não autenticado.");
       return null;
     }
+
     try {
       DocumentSnapshot userSnapshot =
           await _firestore.collection('users').doc(currentUser.uid).get();
+
       if (userSnapshot.exists) {
-        return userSnapshot.data() as Map<String, dynamic>?;
+        Map<String, dynamic> userData =
+            userSnapshot.data() as Map<String, dynamic>;
+
+        // Verifica a existência do campo profileImageUrl
+        if (!userData.containsKey('profileImageUrl') ||
+            userData['profileImageUrl'] == null) {
+          userData['profileImageUrl'] = '';
+          // Atualiza o Firestore com o valor padrão para evitar erros futuros
+          await _firestore.collection('users').doc(currentUser.uid).update({
+            'profileImageUrl': userData['profileImageUrl'],
+          });
+        }
+
+        return userData;
       } else {
         print("Usuário não encontrado.");
       }
@@ -80,15 +124,13 @@ class ProfileService {
 
   // Salva os dados do perfil para o usuário
   Future<void> saveProfileData(Map<String, dynamic> data) async {
-    User? currentUser = FirebaseAuth
-        .instance.currentUser; // Garante que o usuário esteja atualizado
+    User? currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       print("Usuário não autenticado.");
       return;
     }
 
     try {
-      // Atualiza dados do usuário no Firestore
       await _firestore.collection('users').doc(currentUser.uid).update(data);
       print("Dados do usuário atualizados com sucesso.");
     } catch (e) {
@@ -98,7 +140,6 @@ class ProfileService {
 
   // Método para limpar o cache de perfil (se houver implementação de cache local)
   Future<void> clearProfileCache() async {
-    // Se houver um cache local, implemente a lógica para limpar
     print("Cache de perfil limpo.");
   }
 }

@@ -3,6 +3,7 @@ import 'package:build_wise/services/auth_service.dart';
 import 'package:build_wise/services/profile_service.dart';
 import 'package:build_wise/utils/colors.dart';
 import 'package:build_wise/utils/styles.dart';
+import 'package:image/image.dart' as img;
 import 'package:build_wise/views/components/add_member_form.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -28,8 +29,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
   String userName = "Usuário Anônimo";
   String? role;
   List<Map<String, dynamic>> clients = [];
-  List<String> availableProjects = [];
+  //List<String> availableProjects = [];
   List<Map<String, dynamic>> employees = [];
+  List<Map<String, String>> availableProjects = [];
 
   // Controladores de nome, sobrenome, email, sexo, CPF/CNPJ e CEP
   final TextEditingController nameController = TextEditingController();
@@ -75,27 +77,197 @@ class _UserProfilePageState extends State<UserProfilePage> {
         .add(FetchProfileData(user!.uid)); // Removido isMember
   }
 
-  void _showMemberDetails(Map<String, dynamic> member) {
+  void _showMemberDetails(Map<String, dynamic> member, bool isEmployee) async {
+    String? selectedProject;
+    List<String> projectNames = [];
+    List<String> associatedProjects = [];
+
+    // Carrega projetos associados ao membro
+    var memberSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(member['id'])
+        .get();
+
+    if (memberSnapshot.exists &&
+        memberSnapshot.data()!.containsKey('projects')) {
+      List<dynamic> memberProjects = memberSnapshot['projects'];
+
+      for (var projectId in memberProjects) {
+        var projectSnapshot = await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(projectId)
+            .get();
+
+        if (projectSnapshot.exists &&
+            projectSnapshot.data()!.containsKey('name')) {
+          associatedProjects.add(projectId);
+          projectNames.add(projectSnapshot['name']);
+        }
+      }
+    }
+
+    // Define os itens do dropdown, excluindo os projetos associados
+    List<DropdownMenuItem<String>> projectDropdownItems = availableProjects
+        .where((project) => !associatedProjects.contains(project['projectId']))
+        .map((project) => DropdownMenuItem<String>(
+              value: project['projectId'],
+              child: Text(project['name'] ?? 'Projeto sem nome'),
+            ))
+        .toList();
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text('Detalhes do Membro'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Nome: ${member['name']} ${member['lastName']}'),
-              Text('Email: ${member['email']}'),
-              Text(
-                  'Email Verificado: ${member['emailVerified'] ? "Sim" : "Não"}'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Fechar'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              title: Text(
+                'Detalhes do Membro',
+                style:
+                    appWidget.headerLineTextFieldStyle().copyWith(fontSize: 20),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Nome: ${member['name']} ${member['lastName']}',
+                      style: appWidget
+                          .normalTextFieldStyle()
+                          .copyWith(fontSize: 18),
+                    ),
+                    Text(
+                      'Email: ${member['email']}',
+                      style: appWidget
+                          .normalTextFieldStyle()
+                          .copyWith(fontSize: 16),
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'Projetos Associados:',
+                      style: appWidget
+                          .headerLineTextFieldStyle()
+                          .copyWith(fontSize: 18),
+                    ),
+                    ...associatedProjects.asMap().entries.map<Widget>((entry) {
+                      int index = entry.key;
+                      String projectId = entry.value;
+                      return Container(
+                        color: Colors.white,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '- ${projectNames[index]}',
+                                style: appWidget
+                                    .normalTextFieldStyle()
+                                    .copyWith(fontSize: 16),
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.close),
+                              onPressed: () async {
+                                setState(() {
+                                  associatedProjects.removeAt(index);
+                                  if (index < projectNames.length) {
+                                    projectDropdownItems
+                                        .add(DropdownMenuItem<String>(
+                                      value: projectId,
+                                      child: Text(projectNames[index]),
+                                    ));
+                                    projectNames.removeAt(index);
+                                  }
+                                  selectedProject =
+                                      null; // Reset selected project
+                                });
+
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(member['id'])
+                                    .update({
+                                  'projects':
+                                      FieldValue.arrayRemove([projectId]),
+                                });
+
+                                await FirebaseFirestore.instance
+                                    .collection('projects')
+                                    .doc(projectId)
+                                    .update({
+                                  isEmployee ? 'employees' : 'clients':
+                                      FieldValue.arrayRemove([member['id']]),
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      hint: Text('Adicionar Projeto'),
+                      value: selectedProject,
+                      items: projectDropdownItems,
+                      onChanged: (value) {
+                        setState(() {
+                          selectedProject = value;
+                        });
+                      },
+                      decoration:
+                          InputDecoration(labelText: 'Selecione um Projeto'),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child:
+                      Text('Fechar', style: appWidget.normalTextFieldStyle()),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (selectedProject != null) {
+                      setState(() {
+                        associatedProjects.add(selectedProject!);
+                        projectNames.add(
+                          availableProjects.firstWhere(
+                            (project) =>
+                                project['projectId'] == selectedProject,
+                            orElse: () => {'name': 'Projeto sem nome'},
+                          )['name']!,
+                        );
+                        projectDropdownItems.removeWhere(
+                            (item) => item.value == selectedProject);
+                        selectedProject = null; // Reset after adding
+                      });
+
+                      await FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(member['id'])
+                          .update({
+                        'projects': associatedProjects,
+                      });
+
+                      await FirebaseFirestore.instance
+                          .collection('projects')
+                          .doc(selectedProject)
+                          .update({
+                        isEmployee ? 'employees' : 'clients':
+                            FieldValue.arrayUnion([member['id']]),
+                      });
+
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  child: Text(
+                    'Salvar',
+                    style: appWidget.normalTextFieldStyle(),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -119,20 +291,33 @@ class _UserProfilePageState extends State<UserProfilePage> {
       List<Map<String, dynamic>> loadedClients = [];
 
       for (var clientId in clientIds) {
+        // Obtém o cliente do Firestore
         var clientSnapshot = await FirebaseFirestore.instance
             .collection('users')
             .doc(clientId)
             .get();
+
+        // Verifica a existência do cliente no Firestore
         if (clientSnapshot.exists) {
+          // Obtém o status de email verificado diretamente do Firebase Authentication
+          bool emailVerified = false;
+          try {
+            User? firebaseUser = FirebaseAuth.instance.currentUser;
+            if (firebaseUser != null && firebaseUser.uid == clientId) {
+              emailVerified = firebaseUser.emailVerified;
+            }
+          } catch (e) {
+            print("Erro ao verificar o status de email: $e");
+          }
+
+          // Adiciona os dados do cliente à lista
           loadedClients.add({
             'id': clientSnapshot.id,
             'name': clientSnapshot['name'],
             'lastName': clientSnapshot['lastName'],
             'email': clientSnapshot['email'],
-            'projects': clientSnapshot['projects'] ?? [], // Lista de projetos
-            'emailVerified': clientSnapshot.data()!.containsKey('emailVerified')
-                ? clientSnapshot['emailVerified']
-                : false,
+            'projects': clientSnapshot['projects'] ?? [],
+            'emailVerified': emailVerified,
           });
         }
       }
@@ -146,7 +331,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
-  // Carrega projetos disponíveis para seleção no dropdown
+// Carrega projetos disponíveis para seleção no dropdown
   Future<void> _loadAvailableProjects() async {
     if (user == null) {
       print("Nenhum usuário para carregar projetos");
@@ -155,16 +340,17 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     print("Carregando projetos disponíveis para o usuário: ${user!.uid}");
     var projectsSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
         .collection('projects')
+        .where('architectId', isEqualTo: user!.uid)
         .get();
 
     setState(() {
       availableProjects = projectsSnapshot.docs
-          .map((doc) =>
-              doc.data()['name']?.toString() ??
-              'Projeto sem nome') // Lida com valores null
+          .map((doc) => {
+                'projectId': doc.id,
+                'name': (doc['name'] ?? 'Projeto sem nome')
+                    .toString(), // Força o nome como String
+              })
           .toList();
       print("Projetos carregados: $availableProjects");
     });
@@ -456,19 +642,27 @@ class _UserProfilePageState extends State<UserProfilePage> {
         .pushNamedAndRemoveUntil('/login', (Route<dynamic> route) => false);
   }
 
+// Função para redimensionar a imagem antes do upload
+  Future<File> resizeImage(File imageFile) async {
+    final image = img.decodeImage(await imageFile.readAsBytes());
+    final resized = img.copyResize(image!, width: 500); // Ajuste de largura
+    final resizedFile = File(imageFile.path)
+      ..writeAsBytesSync(img.encodeJpg(resized));
+    return resizedFile;
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
     try {
       final pickedFile = await picker.pickImage(source: source);
 
       if (pickedFile != null) {
-        setState(() {
-          _imageFile = File(pickedFile.path);
-        });
+        // Redimensiona a imagem antes do upload
+        File resizedImage = await resizeImage(File(pickedFile.path));
+
         String userId = FirebaseAuth.instance.currentUser!.uid;
         BlocProvider.of<ProfileBloc>(context)
-            .add(UploadProfileImage(_imageFile!, userId));
-        _fetchProfileData(); // Recarrega o perfil após alterar a foto
+            .add(UploadProfileImage(resizedImage, userId));
       } else {
         print("Nenhuma imagem foi selecionada.");
       }
@@ -476,8 +670,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
       print("Erro ao capturar imagem: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text("Erro ao capturar imagem."),
-            backgroundColor: Colors.red),
+          content: Text("Erro ao capturar imagem."),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -503,11 +698,12 @@ class _UserProfilePageState extends State<UserProfilePage> {
       }
     }
 
-    // Carrega os projetos disponíveis para seleção no dropdown
+// Carrega os projetos disponíveis para seleção no dropdown
     List<DropdownMenuItem<String>> projectDropdownItems = availableProjects
         .map((project) => DropdownMenuItem<String>(
-              value: project, // Use o nome do projeto como valor
-              child: Text(project), // Exibe o nome do projeto
+              value: project['projectId'], // Usa o projectId como valor
+              child: Text(project['name'] ??
+                  'Projeto sem nome'), // Exibe o nome ou valor padrão
             ))
         .toList();
 
@@ -582,6 +778,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
                           }
                         }
                       : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor, // Cor do botão
+                    foregroundColor: Colors.white, // Cor do texto
+                  ),
                   child: Text('Salvar'),
                 ),
               ],
@@ -597,6 +797,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Colors.white, // Fundo branco
           title: Text('Selecionar Foto'),
           content: SingleChildScrollView(
             child: ListBody(
@@ -629,7 +830,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Widget _buildClientManagement() {
     return Column(
       children: [
-        Row(
+        /*Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextButton(
@@ -641,26 +842,37 @@ class _UserProfilePageState extends State<UserProfilePage> {
               child: Text("Funcionários"),
             ),
           ],
-        ),
+        ),*/
         SingleChildScrollView(
           child: Column(
             children: (showClients ? clients : employees).map((member) {
               return ListTile(
-                title: Text('${member['name']} ${member['lastName']}'),
+                title: Text(
+                  '${member['name']} ${member['lastName']}',
+                  style:
+                      appWidget.normalTextFieldStyle().copyWith(fontSize: 18),
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: Icon(Icons.email),
+                      icon: Icon(
+                        Icons.email,
+                        color: AppColors.primaryColor,
+                      ),
                       onPressed: () => _resendVerificationEmail(member['id']),
                     ),
                     IconButton(
-                      icon: Icon(Icons.delete),
+                      icon: Icon(
+                        Icons.delete,
+                        color: AppColors.primaryColor,
+                      ),
                       onPressed: () => _deleteMember(member['id']),
                     ),
                   ],
                 ),
-                onTap: () => _showMemberDetails(member),
+                onTap: () =>
+                    _showMemberDetails(member, showClients ? false : true),
               );
             }).toList(),
           ),
@@ -673,22 +885,25 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Widget build(BuildContext context) {
     return BlocListener<ProfileBloc, ProfileState>(
       listener: (context, state) {
-        if (state is ProfileError) {
+        if (state is ProfileImageUploading) {
+          // Exibe um indicador de progresso enquanto o upload é concluído
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => Center(child: CircularProgressIndicator()),
+          );
+        } else if (state is ProfileImageUploaded) {
+          Navigator.of(context).pop(); // Remove o indicador de progresso
+          BlocProvider.of<ProfileBloc>(context).add(
+            FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
+          );
+        } else if (state is ProfileError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text("Erro ao carregar perfil."),
               backgroundColor: Colors.red,
             ),
           );
-          BlocProvider.of<ProfileBloc>(context).add(
-            FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
-          );
-        } else if (state is ProfileSaved) {
-          BlocProvider.of<ProfileBloc>(context).add(
-            FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
-          );
-        } else if (state is ProfileImageUploaded) {
-          // Recarrega o perfil apenas após o upload da imagem
           BlocProvider.of<ProfileBloc>(context).add(
             FetchProfileData(FirebaseAuth.instance.currentUser?.uid ?? ''),
           );
@@ -745,10 +960,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                 onTap: _showImageSourceDialog,
                                 child: CircleAvatar(
                                   radius: 30,
-                                  backgroundImage: profileImageUrl != null
-                                      ? NetworkImage(profileImageUrl!)
-                                      : AssetImage('assets/images/teste.jpg')
-                                          as ImageProvider,
+                                  backgroundImage: (profileImageUrl != null &&
+                                          profileImageUrl!.isNotEmpty)
+                                      ? (profileImageUrl!.startsWith("http")
+                                          ? NetworkImage(profileImageUrl!)
+                                              as ImageProvider
+                                          : AssetImage(
+                                              'assets/images/default_client.png'))
+                                      : AssetImage(
+                                          'assets/images/default_client.png'),
                                 ),
                               ),
                             ),
@@ -812,6 +1032,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             context: context,
                             builder: (BuildContext context) {
                               return AlertDialog(
+                                backgroundColor: Colors.white, // Fundo branco
                                 title: Text('Gerenciar Membros'),
                                 content: Container(
                                   width: double.maxFinite,

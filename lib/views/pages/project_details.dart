@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:build_wise/models/project_model.dart';
 import 'package:build_wise/utils/wave_clipper.dart';
 import 'package:intl/intl.dart';
+import 'package:image/image.dart' as img;
 
 class ProjectDetails extends StatefulWidget {
   final ProjectModel project;
@@ -35,6 +36,21 @@ class _ProjectDetailsState extends State<ProjectDetails> {
     _loadFirstClientName();
   }
 
+  Future<File> _compressImage(File file) async {
+    final imageBytes = await file.readAsBytes();
+    img.Image? image = img.decodeImage(imageBytes);
+
+    if (image != null) {
+      img.Image resized = img.copyResize(image, width: 800); // ajusta o tamanho
+      final compressedBytes =
+          img.encodeJpg(resized, quality: 80); // ajusta a qualidade
+      final compressedFile = File('${file.parent.path}/temp.jpg');
+      return compressedFile.writeAsBytes(compressedBytes);
+    } else {
+      throw Exception("Failed to decode image");
+    }
+  }
+
   Future<void> _loadSavedImages() async {
     try {
       if (widget.project.headerImageUrl?.isNotEmpty ?? false) {
@@ -45,7 +61,9 @@ class _ProjectDetailsState extends State<ProjectDetails> {
         final defaultHeaderUrl = await FirebaseStorage.instance
             .ref('default/project_default_header.jpg')
             .getDownloadURL();
-        setState(() => _headerImageUrl = defaultHeaderUrl);
+        setState(() {
+          _headerImageUrl = defaultHeaderUrl;
+        });
       }
       print("Header image URL loaded: $_headerImageUrl");
     } catch (e) {
@@ -100,10 +118,12 @@ class _ProjectDetailsState extends State<ProjectDetails> {
 
   Future<void> _uploadImage(File imageFile, String type) async {
     try {
+      // Comprime a imagem antes do upload
+      File compressedImage = await _compressImage(imageFile);
       final projectId = widget.project.id;
 
       final ref = FirebaseStorage.instance.ref('projects/$projectId/$type.jpg');
-      await ref.putFile(imageFile);
+      await ref.putFile(compressedImage);
       String url = await ref.getDownloadURL();
 
       await _firestore
@@ -271,7 +291,7 @@ class _ProjectDetailsState extends State<ProjectDetails> {
             );
           }
         }),
-        _buildActionButton(
+        /*_buildActionButton(
           'Fornecedores',
           Icons.people,
           Colors.green,
@@ -288,7 +308,7 @@ class _ProjectDetailsState extends State<ProjectDetails> {
               );
             }
           },
-        ),
+        ),*/
         _buildActionButton(
           'Cash Flow',
           Icons.attach_money,
@@ -313,7 +333,7 @@ class _ProjectDetailsState extends State<ProjectDetails> {
           },
         ),
         _buildActionButton('Projetos', Icons.drive_file_rename_outline_sharp,
-            Colors.grey, context, () {
+            Colors.green, context, () {
           if (widget.project.id != null && widget.project.userId != null) {
             Navigator.pushNamed(context, '/folder_page', arguments: {
               'userId': widget.project.userId!,

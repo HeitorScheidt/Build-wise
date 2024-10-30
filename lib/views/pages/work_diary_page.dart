@@ -10,6 +10,9 @@ import 'package:build_wise/blocs/diary/work_diary_state.dart';
 import 'package:build_wise/models/work_diary_entry.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 class WorkDiaryPage extends StatefulWidget {
   final String projectId;
@@ -56,14 +59,12 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
           if (state is WorkDiaryLoading) {
             return const Center(child: CircularProgressIndicator());
           } else if (state is WorkDiaryLoaded && state.entries.isNotEmpty) {
-            return Expanded(
-              child: ListView.builder(
-                itemCount: state.entries.length,
-                itemBuilder: (context, index) {
-                  final entry = state.entries[index];
-                  return _buildWorkEntryCard(entry, index);
-                },
-              ),
+            return ListView.builder(
+              itemCount: state.entries.length,
+              itemBuilder: (context, index) {
+                final entry = state.entries[index];
+                return _buildWorkEntryCard(entry, index);
+              },
             );
           } else if (state is WorkDiaryError) {
             return Center(child: Text(state.message));
@@ -94,18 +95,22 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
               children: [
                 Text(
                   'Relatório de obra - ${index + 1}',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: appWidget
+                      .headerLineTextFieldStyle()
+                      .copyWith(fontSize: 20),
                 ),
                 Row(
                   children: [
                     IconButton(
                       icon: Icon(Icons.edit),
+                      color: AppColors.primaryColor,
                       onPressed: () {
                         _showEditEntryDialog(entry);
                       },
                     ),
                     IconButton(
                       icon: Icon(Icons.delete),
+                      color: AppColors.primaryColor,
                       onPressed: () {
                         final userId =
                             FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -123,12 +128,15 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: Text(
               'Data: ${entry.date.day}/${entry.date.month}/${entry.date.year}',
-              style: TextStyle(fontSize: 16),
+              style: appWidget.normalTextFieldStyle().copyWith(fontSize: 18),
             ),
           ),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text(entry.description, style: TextStyle(fontSize: 16)),
+            child: Text(
+              entry.description,
+              style: appWidget.normalTextFieldStyle().copyWith(fontSize: 18),
+            ),
           ),
           SizedBox(height: 10),
           if (entry.photos.isNotEmpty)
@@ -146,10 +154,14 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
-                          entry.photos[photoIndex],
+                          entry.photos[
+                              photoIndex], // Passa a URL correta de cada imagem
                           height: 60,
                           width: 60,
                           fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(Icons.broken_image, size: 60);
+                          },
                         ),
                       ),
                     ),
@@ -163,6 +175,9 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
   }
 
   void _showAddEntryDialog(BuildContext context, {bool isEditing = false}) {
+    final workDiaryBloc = context
+        .read<WorkDiaryBloc>(); // Captura o Bloc antes de abrir o diálogo
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -275,6 +290,9 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
                     isSaving = true;
                   });
 
+                  Navigator.of(context).pop(); // Fecha o diálogo imediatamente
+
+                  // Realiza o upload das imagens e adiciona o diário de forma assíncrona
                   List<String> uploadedImageUrls = await _uploadImages();
                   final allImages = [...existingImages, ...uploadedImageUrls];
 
@@ -291,10 +309,10 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
 
                   final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
                   if (isEditing) {
-                    context.read<WorkDiaryBloc>().add(UpdateWorkDiaryEntryEvent(
+                    workDiaryBloc.add(UpdateWorkDiaryEntryEvent(
                         userId, widget.projectId, entry));
                   } else {
-                    context.read<WorkDiaryBloc>().add(AddWorkDiaryEntryEvent(
+                    workDiaryBloc.add(AddWorkDiaryEntryEvent(
                         userId, widget.projectId, entry));
                   }
 
@@ -302,7 +320,6 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
                     isSaving = false;
                   });
 
-                  Navigator.of(context).pop();
                   _loadEntries();
                   _clearDialogFields();
                 }
@@ -337,20 +354,64 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
     editingEntry = null;
   }
 
-  Future<List<String>> _uploadImages() async {
-    List<String> downloadUrls = [];
-    for (XFile image in selectedImages) {
-      final file = File(image.path);
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('work_diary/${DateTime.now().millisecondsSinceEpoch}.jpg');
-      final uploadTask = storageRef.putFile(file);
+  Future<File> _compressImage(File file) async {
+    final imageBytes = await file.readAsBytes();
+    img.Image? image = img.decodeImage(imageBytes);
 
-      final snapshot = await uploadTask.whenComplete(() {});
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      downloadUrls.add(downloadUrl);
+    if (image != null) {
+      img.Image resized = img.copyResize(image, width: 800); // Ajusta o tamanho
+      final compressedBytes =
+          img.encodeJpg(resized, quality: 80); // Ajusta a qualidade
+
+      // Cria um arquivo temporário único para cada imagem comprimida
+      final tempDir = await getTemporaryDirectory();
+      final uuid = Uuid().v4();
+      final compressedFile = File('${tempDir.path}/compressed_$uuid.jpg');
+
+      return compressedFile.writeAsBytes(compressedBytes);
+    } else {
+      throw Exception("Falha ao decodificar a imagem");
     }
-    return downloadUrls;
+  }
+
+  Future<List<String>> _uploadImages() async {
+    List<Future<String>> uploadTasks = [];
+
+    // Para cada imagem, crie uma Future separada
+    for (XFile image in selectedImages) {
+      // Adiciona uma Future para o upload de cada imagem
+      uploadTasks.add(_uploadSingleImage(image));
+    }
+
+    // Aguarda a conclusão de todas as Futures
+    return await Future.wait(uploadTasks);
+  }
+
+  Future<String> _uploadSingleImage(XFile image) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final uuid = Uuid().v4();
+      final tempImagePath = '${tempDir.path}/$uuid.jpg';
+
+      // Salva o arquivo temporário e comprime a imagem
+      final tempFile =
+          await File(tempImagePath).writeAsBytes(await image.readAsBytes());
+      final compressedFile = await _compressImage(tempFile);
+
+      // Define um nome único para cada imagem antes do upload
+      final storageRef = FirebaseStorage.instance.ref().child(
+          'work_diary/${DateTime.now().millisecondsSinceEpoch}_$uuid.jpg');
+
+      // Executa o upload
+      final uploadTask = storageRef.putFile(compressedFile);
+      final snapshot = await uploadTask.whenComplete(() {});
+
+      // Retorna a URL da imagem no Firebase
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      print('Erro ao fazer upload da imagem: $e');
+      return '';
+    }
   }
 
   Future<void> _pickImages(StateSetter setDialogState) async {

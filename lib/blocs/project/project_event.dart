@@ -24,6 +24,15 @@ class LoadProjectsByArchitectEvent extends ProjectEvent {
   LoadProjectsByArchitectEvent(this.architectId);
 }
 
+class DeleteProjectEvent extends ProjectEvent {
+  final String projectId;
+
+  const DeleteProjectEvent({required this.projectId});
+
+  @override
+  List<Object> get props => [projectId]; // Ensure List<Object> type
+}
+
 class VerifyCepEvent extends ProjectEvent {
   final String cep;
 

@@ -1,3 +1,5 @@
+import 'dart:async'; // Import necessário para Timer
+import 'package:build_wise/utils/colors.dart';
 import 'package:build_wise/utils/styles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,18 +20,31 @@ class CronogramaPage extends StatefulWidget {
 
 class _CronogramaPageState extends State<CronogramaPage> {
   bool isListView = true;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    // Carregar tarefas ao iniciar a página
     context.read<ScheduleBloc>().add(LoadScheduleEntries(widget.userId));
+
+    // Inicia o timer para verificar tarefas expiradas a cada minuto
+    _timer = Timer.periodic(Duration(minutes: 1), (_) {
+      _checkExpiredTasks();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white, // Fundo da tela em branco
       appBar: AppBar(
+        backgroundColor: Colors.white,
         title: Text('Cronograma', style: appWidget.headerLineTextFieldStyle()),
         actions: [
           DropdownButton<String>(
@@ -50,14 +65,17 @@ class _CronogramaPageState extends State<CronogramaPage> {
       ),
       body: BlocListener<ScheduleBloc, ScheduleState>(
         listener: (context, state) {
-          // Exibir mensagem apenas quando uma tarefa for criada, atualizada ou deletada com sucesso
           if (state is ScheduleSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: Colors.green, // Fundo verde para sucesso
+                backgroundColor: Colors.green,
               ),
             );
+            // Recarrega a lista de tarefas para atualizar a interface
+            context
+                .read<ScheduleBloc>()
+                .add(LoadScheduleEntries(widget.userId));
           }
         },
         child: BlocBuilder<ScheduleBloc, ScheduleState>(
@@ -65,11 +83,36 @@ class _CronogramaPageState extends State<CronogramaPage> {
             if (state is ScheduleLoading) {
               return Center(child: CircularProgressIndicator());
             } else if (state is ScheduleLoaded) {
-              // Remover tarefas expiradas antes de exibir
-              _removeExpiredTasks(state.entries);
-              return isListView
-                  ? _buildTaskListView(state.entries)
-                  : _buildCalendarView(state.entries);
+              final urgentTasks = state.entries
+                  .where((e) =>
+                      e.priority == 'Urgent' && !e.isExpired && !e.isCompleted)
+                  .toList();
+              final highTasks = state.entries
+                  .where((e) =>
+                      e.priority == 'High' && !e.isExpired && !e.isCompleted)
+                  .toList();
+              final normalTasks = state.entries
+                  .where((e) =>
+                      e.priority == 'Normal' && !e.isExpired && !e.isCompleted)
+                  .toList();
+              final overdueTasks = state.entries
+                  .where((e) => e.isExpired && !e.isCompleted)
+                  .toList();
+              final completedTasks =
+                  state.entries.where((e) => e.isCompleted).toList();
+
+              return ListView(
+                children: [
+                  _buildTaskCategory('URGENTE', urgentTasks, Colors.red),
+                  _buildTaskCategory('ALTA', highTasks, Colors.orange),
+                  _buildTaskCategory('NORMAL', normalTasks, Colors.blue),
+                  if (overdueTasks.isNotEmpty)
+                    _buildTaskCategory('ATRASADAS', overdueTasks, Colors.grey),
+                  if (completedTasks.isNotEmpty)
+                    _buildTaskCategory(
+                        'COMPLETAS', completedTasks, Colors.green),
+                ],
+              );
             } else if (state is ScheduleError) {
               return Center(child: Text(state.message));
             }
@@ -81,23 +124,10 @@ class _CronogramaPageState extends State<CronogramaPage> {
         onPressed: () {
           _showAddEntryDialog(context);
         },
-        child: Icon(Icons.add),
+        child: Icon(Icons.add, color: Colors.white),
+        backgroundColor: AppColors.primaryColor,
+        shape: CircleBorder(),
       ),
-    );
-  }
-
-  // Função para construir a visualização em lista
-  Widget _buildTaskListView(List<ScheduleEntry> entries) {
-    final urgentTasks = entries.where((e) => e.priority == 'Urgent').toList();
-    final highTasks = entries.where((e) => e.priority == 'High').toList();
-    final normalTasks = entries.where((e) => e.priority == 'Normal').toList();
-
-    return ListView(
-      children: [
-        _buildTaskCategory('URGENT', urgentTasks, Colors.red),
-        _buildTaskCategory('HIGH', highTasks, Colors.orange),
-        _buildTaskCategory('NORMAL', normalTasks, Colors.blue),
-      ],
     );
   }
 
@@ -107,25 +137,43 @@ class _CronogramaPageState extends State<CronogramaPage> {
       title: Text(title, style: TextStyle(color: color)),
       children: tasks.map((task) {
         return GestureDetector(
-          onTap: () =>
-              _showEditEntryDialog(context, task), // Abrir popup de edição
+          onTap: () => _showEditEntryDialog(context, task),
           child: Card(
+            color: Colors.white, // Fundo do container em branco
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10.0),
             ),
             child: ListTile(
-              title: Text(task.title),
+              title: Text(task.title,
+                  style:
+                      appWidget.normalTextFieldStyle().copyWith(fontSize: 20)),
               subtitle: Text(
-                  '${DateFormat('dd/MM/yyyy HH:mm').format(task.startDateTime)} - '
-                  '${DateFormat('dd/MM/yyyy HH:mm').format(task.endDateTime)}\n'
-                  'Responsável: ${task.responsible}'),
-              trailing: IconButton(
-                icon: Icon(Icons.delete, color: Colors.red),
-                onPressed: () {
-                  context
-                      .read<ScheduleBloc>()
-                      .add(DeleteScheduleEntry(widget.userId, task.id));
-                },
+                '${DateFormat('dd/MM/yyyy HH:mm').format(task.startDateTime)} - '
+                '${DateFormat('dd/MM/yyyy HH:mm').format(task.endDateTime)}\n'
+                'Responsável: ${task.responsible}',
+                style: appWidget.normalTextFieldStyle().copyWith(fontSize: 16),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.check, color: Colors.green),
+                    onPressed: () {
+                      task.isCompleted = true;
+                      context
+                          .read<ScheduleBloc>()
+                          .add(UpdateScheduleEntry(widget.userId, task));
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.delete, color: AppColors.primaryColor),
+                    onPressed: () {
+                      context
+                          .read<ScheduleBloc>()
+                          .add(DeleteScheduleEntry(widget.userId, task.id));
+                    },
+                  ),
+                ],
               ),
             ),
           ),
@@ -134,31 +182,16 @@ class _CronogramaPageState extends State<CronogramaPage> {
     );
   }
 
-  // Função para remover tarefas expiradas
-  void _removeExpiredTasks(List<ScheduleEntry> entries) {
+  void _checkExpiredTasks() {
     final now = DateTime.now();
-    for (var entry in entries) {
-      if (entry.endDateTime.isBefore(now)) {
-        context
-            .read<ScheduleBloc>()
-            .add(DeleteScheduleEntry(widget.userId, entry.id));
-      }
-    }
+    context.read<ScheduleBloc>().add(CheckExpiredTasks(widget.userId, now));
   }
 
-  // Função para construir a visualização em calendário
-  Widget _buildCalendarView(List<ScheduleEntry> entries) {
-    return Center(
-      child: Text('Implementar visualização em calendário'),
-    );
-  }
-
-  // Função para exibir o diálogo de adicionar nova tarefa
   void _showAddEntryDialog(BuildContext context) {
     final _titleController = TextEditingController();
     final _descriptionController = TextEditingController();
     final _responsibleController = TextEditingController();
-    String? _selectedPriority = 'Normal'; // Valor padrão de prioridade
+    String? _selectedPriority = 'Normal';
     DateTime? _startDateTime;
     DateTime? _endDateTime;
 
@@ -243,18 +276,19 @@ class _CronogramaPageState extends State<CronogramaPage> {
                         _endDateTime != null &&
                         _selectedPriority != null) {
                       final newEntry = ScheduleEntry(
-                        id: '', // ID gerado automaticamente
+                        id: '',
                         startDateTime: _startDateTime!,
                         endDateTime: _endDateTime!,
                         responsible: _responsibleController.text,
                         title: _titleController.text,
                         description: _descriptionController.text,
                         priority: _selectedPriority!,
+                        isExpired: false,
+                        isCompleted: false,
                       );
                       context
                           .read<ScheduleBloc>()
                           .add(AddScheduleEntry(widget.userId, newEntry));
-
                       Navigator.of(context).pop();
                     }
                   },
@@ -267,7 +301,6 @@ class _CronogramaPageState extends State<CronogramaPage> {
     );
   }
 
-  // Função para exibir o popup de edição de tarefa
   void _showEditEntryDialog(BuildContext context, ScheduleEntry entry) {
     final _titleController = TextEditingController(text: entry.title);
     final _descriptionController =
@@ -352,8 +385,6 @@ class _CronogramaPageState extends State<CronogramaPage> {
                   onPressed: () {
                     if (_titleController.text.isNotEmpty &&
                         _responsibleController.text.isNotEmpty &&
-                        _startDateTime != null &&
-                        _endDateTime != null &&
                         _selectedPriority != null) {
                       final updatedEntry = ScheduleEntry(
                         id: entry.id,
@@ -363,6 +394,8 @@ class _CronogramaPageState extends State<CronogramaPage> {
                         title: _titleController.text,
                         description: _descriptionController.text,
                         priority: _selectedPriority!,
+                        isExpired: entry.isExpired,
+                        isCompleted: entry.isCompleted,
                       );
                       context.read<ScheduleBloc>().add(
                           UpdateScheduleEntry(widget.userId, updatedEntry));

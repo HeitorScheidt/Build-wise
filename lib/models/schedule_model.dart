@@ -7,7 +7,9 @@ class ScheduleEntry {
   final String responsible;
   final String title;
   final String description;
-  final String priority; // Adicionando o campo de prioridade
+  final String priority;
+  bool isExpired;
+  bool isCompleted; // Adicionando o campo isCompleted
 
   ScheduleEntry({
     required this.id,
@@ -16,7 +18,9 @@ class ScheduleEntry {
     required this.responsible,
     required this.title,
     required this.description,
-    required this.priority, // Inicializando o campo de prioridade
+    required this.priority,
+    this.isExpired = false, // Inicializa isExpired com valor padrão false
+    this.isCompleted = false, // Inicializa isCompleted com valor padrão false
   });
 
   // Converter do Firestore para um objeto ScheduleEntry
@@ -28,8 +32,10 @@ class ScheduleEntry {
       responsible: data['responsible'],
       title: data['title'],
       description: data['description'],
-      priority: data['priority'] ??
-          'Normal', // Definindo prioridade padrão se não estiver presente
+      priority: data['priority'] ?? 'Normal',
+      isExpired: data['isExpired'] ?? false,
+      isCompleted: data['isCompleted'] ??
+          false, // Define isCompleted como false se não estiver presente
     );
   }
 
@@ -41,7 +47,9 @@ class ScheduleEntry {
       'responsible': responsible,
       'title': title,
       'description': description,
-      'priority': priority, // Incluindo prioridade no Firestore
+      'priority': priority,
+      'isExpired': isExpired, // Inclui isExpired no Firestore
+      'isCompleted': isCompleted, // Inclui isCompleted no Firestore
     };
   }
 }

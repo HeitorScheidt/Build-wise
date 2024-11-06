@@ -45,6 +45,28 @@ class ScheduleBloc extends Bloc<ScheduleEvent, ScheduleState> {
       }
     });
 
+    // Lida com o evento CheckExpiredTasks para mover tarefas expiradas
+    on<CheckExpiredTasks>((event, emit) async {
+      try {
+        final entries =
+            await _scheduleService.loadScheduleEntries(event.userId);
+        final updatedEntries = entries.map((entry) {
+          if (entry.endDateTime.isBefore(event.now) && !entry.isExpired) {
+            entry.isExpired = true;
+          }
+          return entry;
+        }).toList();
+
+        // Atualizar as entradas expiradas
+        await _scheduleService.updateExpiredEntries(
+            event.userId, updatedEntries);
+        emit(ScheduleLoaded(updatedEntries));
+      } catch (e) {
+        emit(ScheduleError(
+            "Erro ao verificar tarefas expiradas: ${e.toString()}"));
+      }
+    });
+
     // Handler para atualizar uma entrada existente
     on<UpdateScheduleEntry>((event, emit) async {
       try {

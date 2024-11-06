@@ -1,7 +1,10 @@
+import 'package:build_wise/blocs/auth/auth_bloc.dart';
+import 'package:build_wise/blocs/auth/auth_event.dart';
 import 'package:build_wise/blocs/member/add_member_bloc.dart';
 import 'package:build_wise/blocs/member/add_member_event.dart';
 import 'package:build_wise/blocs/member/add_member_state.dart';
 import 'package:build_wise/services/user_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -69,7 +72,7 @@ class _AddMemberFormState extends State<AddMemberForm> {
     return BlocProvider(
       create: (context) => AddMemberBloc(UserService()),
       child: BlocListener<AddMemberBloc, AddMemberState>(
-        listener: (context, state) {
+        listener: (context, state) async {
           if (state.isSuccess && !state.isLoading) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -79,7 +82,14 @@ class _AddMemberFormState extends State<AddMemberForm> {
             );
             _clearFields();
             _loadUserProjects(); // Recarregar projetos
-            Navigator.of(context).pop(); // Fecha o AlertDialog
+
+            // Realiza o logout após criar o novo membro
+            BlocProvider.of<AuthBloc>(context).add(AuthLogoutRequested());
+
+            // Redireciona para a página de login
+            await FirebaseAuth.instance.signOut();
+            Navigator.of(context).pushNamedAndRemoveUntil(
+                '/login', (Route<dynamic> route) => false);
           } else if (state.errorMessage != null && !state.isSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -196,10 +206,14 @@ class _AddMemberFormState extends State<AddMemberForm> {
                           isExpanded: true,
                           items: [
                             DropdownMenuItem(
-                                value: 'Cliente', child: Text('Cliente')),
-                            DropdownMenuItem(
+                                value: 'Cliente',
+                                child: Container(
+                                  child: Text('Cliente'),
+                                  color: Colors.white,
+                                )),
+                            /*DropdownMenuItem(
                                 value: 'Funcionário',
-                                child: Text('Funcionário')),
+                                child: Text('Funcionário')),*/
                           ],
                           onChanged: (value) {
                             setState(() {
@@ -214,6 +228,7 @@ class _AddMemberFormState extends State<AddMemberForm> {
                               SizedBox(height: 16),
                               DropdownButton<String>(
                                 hint: Text('Selecione um projeto'),
+                                dropdownColor: Colors.white,
                                 value: selectedProject,
                                 isExpanded: true,
                                 items: projects.map((project) {

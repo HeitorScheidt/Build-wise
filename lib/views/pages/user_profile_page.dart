@@ -58,6 +58,60 @@ class _UserProfilePageState extends State<UserProfilePage> {
     });
   }
 
+  void _showAddMemberConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          title: Text('Aviso Importante'),
+          content: Text(
+            'Ao criar um novo membro, você será deslogado. Deseja continuar?',
+            style: appWidget.normalTextFieldStyle().copyWith(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Fecha o primeiro diálogo
+                _showAddMemberFormDialog(); // Exibe o formulário de criação de membro
+              },
+              child: Text('Okay', style: appWidget.normalTextFieldStyle()),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Fecha o diálogo sem ação
+              },
+              child: Text('Cancelar', style: appWidget.normalTextFieldStyle()),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAddMemberFormDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          insetPadding: EdgeInsets.all(0),
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: AddMemberForm(userId: user?.uid ?? ''),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _fetchProfileData() async {
     _updateCurrentUser();
 
@@ -1000,25 +1054,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         title: Text('Add Member'),
                         subtitle: Text('Add a third person to your account'),
                         onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return Dialog(
-                                backgroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12.0),
-                                ),
-                                insetPadding: EdgeInsets.all(0),
-                                child: SizedBox(
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.9,
-                                  height:
-                                      MediaQuery.of(context).size.height * 0.6,
-                                  child: AddMemberForm(userId: user?.uid ?? ''),
-                                ),
-                              );
-                            },
-                          );
+                          _showAddMemberConfirmationDialog(); // Exibe a confirmação antes de abrir o formulário
                         },
                       ),
                     if (profileData?['role'] == 'arquiteto')

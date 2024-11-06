@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:build_wise/blocs/project/project_event.dart';
 import 'package:build_wise/blocs/project/project_state.dart';
@@ -12,6 +13,7 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
     on<LoadProjectsEvent>(_onLoadProjects);
     on<CreateProjectEvent>(_onCreateProject);
     on<LoadProjectsByArchitectEvent>(_onLoadProjectsByArchitect);
+    on<DeleteProjectEvent>(_onDeleteProject);
   }
 
   // Método para formatar o valor em R$**,**
@@ -34,6 +36,21 @@ class ProjectBloc extends Bloc<ProjectEvent, ProjectState> {
 
     double parsedValue = double.tryParse(digitsOnly) ?? 0;
     return '${parsedValue.toStringAsFixed(0)} m²';
+  }
+
+  Future<void> _onDeleteProject(
+      DeleteProjectEvent event, Emitter<ProjectState> emit) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(event.projectId)
+          .delete();
+      // Emit a state to refresh or handle as needed
+      emit(
+          ProjectDeletedState()); // Define a state to indicate successful deletion
+    } catch (e) {
+      emit(ProjectErrorState("Failed to delete project: $e"));
+    }
   }
 
   // Método para carregar projetos pelo architectId

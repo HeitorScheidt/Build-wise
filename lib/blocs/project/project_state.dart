@@ -38,6 +38,19 @@ class CepVerifiedState extends ProjectState {
 // Estado quando não há projetos
 class ProjectEmpty extends ProjectState {}
 
+// Add ProjectDeletedState
+class ProjectDeletedState extends ProjectState {}
+
+// Define ProjectErrorState to handle errors
+class ProjectErrorState extends ProjectState {
+  final String message;
+
+  ProjectErrorState(this.message);
+
+  @override
+  List<Object> get props => [message];
+}
+
 // Estado de erro ao carregar ou criar projetos
 class ProjectError extends ProjectState {
   final String message;

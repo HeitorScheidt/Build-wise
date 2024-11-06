@@ -33,3 +33,11 @@ class UpdateScheduleEntry extends ScheduleEvent {
 
   UpdateScheduleEntry(this.userId, this.entry);
 }
+
+// Novo evento para verificar tarefas expiradas
+class CheckExpiredTasks extends ScheduleEvent {
+  final String userId;
+  final DateTime now;
+
+  CheckExpiredTasks(this.userId, this.now);
+}

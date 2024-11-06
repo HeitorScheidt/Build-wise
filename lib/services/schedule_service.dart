@@ -7,7 +7,7 @@ class ScheduleService {
   // Método para carregar entradas do cronograma
   Future<List<ScheduleEntry>> loadScheduleEntries(String userId) async {
     final snapshot = await _firestore
-        .collection('users') // Alterado de 'user' para 'users'
+        .collection('users')
         .doc(userId)
         .collection('cronograma')
         .get();
@@ -20,7 +20,7 @@ class ScheduleService {
   // Método para adicionar uma nova entrada
   Future<void> addScheduleEntry(String userId, ScheduleEntry entry) async {
     await _firestore
-        .collection('users') // Alterado de 'user' para 'users'
+        .collection('users')
         .doc(userId)
         .collection('cronograma')
         .add(entry.toFirestore());
@@ -29,7 +29,7 @@ class ScheduleService {
   // Método para deletar uma entrada existente
   Future<void> deleteScheduleEntry(String userId, String entryId) async {
     await _firestore
-        .collection('users') // Alterado de 'user' para 'users'
+        .collection('users')
         .doc(userId)
         .collection('cronograma')
         .doc(entryId)
@@ -39,10 +39,20 @@ class ScheduleService {
   // Método para atualizar uma entrada existente
   Future<void> updateScheduleEntry(String userId, ScheduleEntry entry) async {
     await _firestore
-        .collection('users') // Alterado de 'user' para 'users'
+        .collection('users')
         .doc(userId)
         .collection('cronograma')
         .doc(entry.id)
         .update(entry.toFirestore());
+  }
+
+  // Novo método para atualizar todas as entradas expiradas
+  Future<void> updateExpiredEntries(
+      String userId, List<ScheduleEntry> updatedEntries) async {
+    for (var entry in updatedEntries) {
+      if (entry.isExpired) {
+        await updateScheduleEntry(userId, entry);
+      }
+    }
   }
 }

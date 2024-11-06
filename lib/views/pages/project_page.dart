@@ -21,47 +21,41 @@ class ProjectPage extends StatefulWidget {
 }
 
 class _ProjectPageState extends State<ProjectPage> {
-  late Future<List<ProjectModel>> _projectsFuture;
   String? userRole;
   String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
   List<String> projectIds = [];
+  bool isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _projectsFuture = _initializeData();
+    _initializeData();
   }
 
-  Future<List<ProjectModel>> _initializeData() async {
+  void _initializeData() async {
     final roleProvider = Provider.of<UserRoleProvider>(context, listen: false);
     await roleProvider.fetchUserRole();
 
     setState(() {
       userRole = roleProvider.role;
       projectIds = roleProvider.projectIds ?? [];
+      isInitialized = true;
     });
-
-    return loadProjects();
   }
 
-  Future<List<ProjectModel>> loadProjects() async {
+  Stream<List<ProjectModel>> _projectStream() {
     Query query = FirebaseFirestore.instance.collection('projects');
 
     if (userRole == 'arquiteto') {
       query = query.where('architectId', isEqualTo: currentUserId);
     } else if (userRole == 'Cliente') {
       query = query.where('clients', arrayContains: currentUserId);
-    } else {
-      return [];
     }
 
-    QuerySnapshot projectSnapshot = await query.get();
-    print("Projetos carregados: ${projectSnapshot.docs.length}");
-
-    return projectSnapshot.docs
+    return query.snapshots().map((snapshot) => snapshot.docs
         .map((doc) =>
             ProjectModel.fromMap(doc.id, doc.data() as Map<String, dynamic>))
-        .toList();
+        .toList());
   }
 
   String formatCurrency(String value) {
@@ -69,7 +63,7 @@ class _ProjectPageState extends State<ProjectPage> {
     if (digitsOnly.isEmpty) return 'R\$ 0,00';
 
     double parsedValue = double.tryParse(digitsOnly) ?? 0;
-    parsedValue /= 100; // Para ajustar os dois últimos dígitos como centavos
+    parsedValue /= 100;
     return NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
         .format(parsedValue);
   }
@@ -92,39 +86,44 @@ class _ProjectPageState extends State<ProjectPage> {
             Text("Meus Projetos", style: appWidget.headerLineTextFieldStyle()),
         elevation: 0,
       ),
-      body: FutureBuilder<List<ProjectModel>>(
-        future: _projectsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            print("Erro ao carregar projetos: ${snapshot.error}");
-            return const Center(child: Text('Erro ao carregar projetos.'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('Nenhum projeto encontrado.'));
-          } else {
-            final projects = snapshot.data!;
-            return GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.8,
-              ),
-              itemCount: projects.length,
-              itemBuilder: (context, index) {
-                final project = projects[index];
-                return InkWell(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ProjectDetails(project: project),
+      body: isInitialized
+          ? StreamBuilder<List<ProjectModel>>(
+              stream: _projectStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  print("Erro ao carregar projetos: ${snapshot.error}");
+                  return const Center(
+                      child: Text('Erro ao carregar projetos.'));
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(
+                      child: Text('Nenhum projeto encontrado.'));
+                } else {
+                  final projects = snapshot.data!;
+                  return GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 0.8,
                     ),
-                  ),
-                  child: _buildProjectCard(context, project),
-                );
+                    itemCount: projects.length,
+                    itemBuilder: (context, index) {
+                      final project = projects[index];
+                      return InkWell(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProjectDetails(project: project),
+                          ),
+                        ),
+                        child: _buildProjectCard(context, project),
+                      );
+                    },
+                  );
+                }
               },
-            );
-          }
-        },
-      ),
+            )
+          : const Center(child: CircularProgressIndicator()),
       floatingActionButton: userRole != 'cliente'
           ? FloatingActionButton(
               onPressed: () => _showAddProjectDialog(context, currentUserId),
@@ -148,48 +147,74 @@ class _ProjectPageState extends State<ProjectPage> {
         return Container(
           margin: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.white, // Define o fundo branco do card
+            color: Colors.white,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Material(
-            color: Colors.white, // Fundo do Material em branco
+            color: Colors.white,
             elevation: 5.0,
             borderRadius: BorderRadius.circular(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Stack(
               children: [
-                Container(
-                  color: Colors.white,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Image.network(
-                      snapshot.data!,
-                      height: 200,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Image.asset(
-                          'assets/images/project_default_header.jpg',
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        );
-                      },
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      children: [
+                        Container(
+                          color: Colors.white,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.network(
+                              snapshot.data!,
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Image.asset(
+                                  'assets/images/project_default_header.jpg',
+                                  height: 200,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: () => _deleteProject(context, project),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-                Flexible(
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Container(
-                      color: Colors.white, // Define o fundo branco do texto
-                      child: Text(
-                        project.name ?? 'Sem nome',
-                        style: appWidget.boldLineTextFieldStyle(),
-                        overflow: TextOverflow.ellipsis,
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Container(
+                          color: Colors.white,
+                          child: Text(
+                            project.name ?? 'Sem nome',
+                            style: appWidget.boldLineTextFieldStyle(),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -201,11 +226,9 @@ class _ProjectPageState extends State<ProjectPage> {
 
   Future<String> getImageUrl(String imageUrl) async {
     if (imageUrl.isNotEmpty) {
-      // Caso `headerImageUrl` já seja uma URL completa, retorna diretamente
       print("Carregando imagem do projeto a partir de URL: $imageUrl");
       return imageUrl;
     } else {
-      // Caso contrário, retorna a imagem padrão
       print("URL vazia, carregando imagem padrão.");
       return 'assets/images/project_default_header.jpg';
     }
@@ -306,5 +329,38 @@ class _ProjectPageState extends State<ProjectPage> {
         );
       },
     );
+  }
+
+  void _deleteProject(BuildContext context, ProjectModel project) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Excluir Projeto"),
+          content:
+              const Text("Tem certeza de que deseja excluir este projeto?"),
+          actions: [
+            TextButton(
+              child: const Text("Cancelar"),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              child: const Text("Excluir"),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true) {
+      FirebaseFirestore.instance
+          .collection('projects')
+          .doc(project.id)
+          .delete();
+      context
+          .read<ProjectBloc>()
+          .add(DeleteProjectEvent(projectId: project.id));
+    }
   }
 }

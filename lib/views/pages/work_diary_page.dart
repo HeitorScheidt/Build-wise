@@ -184,91 +184,103 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
         return AlertDialog(
           title: Text(
               isEditing ? 'Editar entrada' : 'Nova entrada no diário de obra'),
-          content: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setDialogState) {
-              return SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: ['Manhã', 'Tarde', 'Noite']
-                          .map((period) => _periodSelector(
-                              period, getIconData(period), setDialogState))
-                          .toList(),
-                    ),
-                    SwitchListTile(
-                      title: Text(
-                          wasPractical ? 'Foi prático' : 'Foi impraticável'),
-                      value: wasPractical,
-                      onChanged: (bool value) {
-                        setDialogState(() {
-                          wasPractical = value;
-                        });
-                      },
-                    ),
-                    TextField(
-                      decoration: InputDecoration(
-                        icon: Icon(Icons.calendar_today),
-                        labelText: selectedDate == null
-                            ? 'Insira a data do relatório'
-                            : 'Data: ${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}',
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.date_range),
-                          onPressed: () => _selectDate(context, setDialogState),
+          content: SingleChildScrollView(
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setDialogState) {
+                return SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: ['Manhã', 'Tarde', 'Noite']
+                            .map((period) => _periodSelector(
+                                period, getIconData(period), setDialogState))
+                            .toList(),
+                      ),
+                      SwitchListTile(
+                        title: Text(
+                            wasPractical ? 'Foi prático' : 'Foi impraticável'),
+                        value: wasPractical,
+                        onChanged: (bool value) {
+                          setDialogState(() {
+                            wasPractical = value;
+                          });
+                        },
+                      ),
+                      TextField(
+                        decoration: InputDecoration(
+                          icon: Icon(Icons.calendar_today),
+                          labelText: selectedDate == null
+                              ? 'Insira a data do relatório'
+                              : 'Data: ${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}',
+                          suffixIcon: IconButton(
+                            icon: Icon(Icons.date_range),
+                            onPressed: () =>
+                                _selectDate(context, setDialogState),
+                          ),
                         ),
+                        readOnly: true,
                       ),
-                      readOnly: true,
-                    ),
-                    TextField(
-                      controller: descriptionController,
-                      decoration: const InputDecoration(
-                          labelText: 'Descreva o que foi feito'),
-                      maxLines: 3,
-                    ),
-                    ElevatedButton.icon(
-                      icon: Icon(Icons.add_photo_alternate),
-                      label: const Text('Adicione Fotos da Obra'),
-                      onPressed: () async {
-                        await _pickImages(setDialogState);
-                      },
-                    ),
-                    // Exibir imagens existentes e novas na lista
-                    if (existingImages.isNotEmpty || selectedImages.isNotEmpty)
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          ...existingImages.map((imageUrl) {
-                            final imageName = imageUrl.split('/').last;
-                            return Chip(
-                              label: Text(imageName),
-                              deleteIcon: Icon(Icons.close, color: Colors.red),
-                              onDeleted: () {
-                                setDialogState(() {
-                                  existingImages.remove(imageUrl);
-                                });
-                              },
-                            );
-                          }).toList(),
-                          ...selectedImages.asMap().entries.map((entry) {
-                            final index = entry.key;
-                            final imageName = entry.value.name;
-                            return Chip(
-                              label: Text(imageName),
-                              deleteIcon: Icon(Icons.close, color: Colors.red),
-                              onDeleted: () {
-                                setDialogState(() {
-                                  selectedImages.removeAt(index);
-                                });
-                              },
-                            );
-                          }).toList(),
-                        ],
+                      TextField(
+                        controller: descriptionController,
+                        decoration: const InputDecoration(
+                            labelText: 'Descreva o que foi feito'),
+                        maxLines: 3,
                       ),
-                  ],
-                ),
-              );
-            },
+                      ElevatedButton.icon(
+                        icon: Icon(Icons.add_photo_alternate,
+                            color: Colors.white),
+                        label: const Text('Adicione Fotos da Obra',
+                            style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              AppColors.primaryColor, // Cor de fundo
+                        ),
+                        onPressed: () async {
+                          await _pickImages(setDialogState);
+                        },
+                      ),
+                      // Exibir imagens existentes e novas na lista
+                      if (existingImages.isNotEmpty ||
+                          selectedImages.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            ...existingImages.map((imageUrl) {
+                              final imageName = imageUrl.split('/').last;
+                              return Chip(
+                                label: Text(imageName),
+                                deleteIcon:
+                                    Icon(Icons.close, color: Colors.red),
+                                onDeleted: () {
+                                  setDialogState(() {
+                                    existingImages.remove(imageUrl);
+                                  });
+                                },
+                              );
+                            }).toList(),
+                            ...selectedImages.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final imageName = entry.value.name;
+                              return Chip(
+                                label: Text(imageName),
+                                deleteIcon:
+                                    Icon(Icons.close, color: Colors.red),
+                                onDeleted: () {
+                                  setDialogState(() {
+                                    selectedImages.removeAt(index);
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ],
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
           actions: [
             TextButton(

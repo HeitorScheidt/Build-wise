@@ -53,37 +53,39 @@ class FolderPage extends StatelessWidget {
                 itemCount: state.files.length,
                 itemBuilder: (context, index) {
                   ProjectFile file = state.files[index];
-                  return ListTile(
-                    title: Text(file.name),
-                    subtitle: Text('Tamanho: ${_formatFileSize(file.size)}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (userRole != 'Cliente')
-                          IconButton(
-                            icon: Icon(Icons.edit),
-                            onPressed: () {
-                              // Código para editar o arquivo (implementação específica)
-                            },
-                          ),
-                        if (userRole != 'Cliente')
-                          IconButton(
-                            icon: Icon(Icons.delete),
-                            onPressed: () {
-                              context.read<FileBloc>().add(DeleteFile(
-                                  userId, projectId, file.id, file.name));
-                            },
-                          ),
-                      ],
+                  return Material(
+                    elevation: 5.0,
+                    borderRadius:
+                        BorderRadius.circular(8.0), // Bordas arredondadas
+                    child: ListTile(
+                      title: Text(
+                        file.name,
+                        style: TextStyle(
+                            fontSize: 14.0), // Tamanho reduzido do nome
+                      ),
+                      subtitle: Text('Tamanho: ${_formatFileSize(file.size)}'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (userRole != 'Cliente')
+                            IconButton(
+                              icon: Icon(Icons.delete),
+                              onPressed: () {
+                                context.read<FileBloc>().add(DeleteFile(
+                                    userId, projectId, file.id, file.name));
+                              },
+                            ),
+                        ],
+                      ),
+                      onTap: () async {
+                        final url = file.downloadUrl;
+                        if (await canLaunch(url)) {
+                          await launch(url);
+                        } else {
+                          throw 'Could not launch $url';
+                        }
+                      },
                     ),
-                    onTap: () async {
-                      final url = file.downloadUrl;
-                      if (await canLaunch(url)) {
-                        await launch(url);
-                      } else {
-                        throw 'Could not launch $url';
-                      }
-                    },
                   );
                 },
               );

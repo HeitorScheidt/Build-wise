@@ -105,7 +105,7 @@ class _ProjectPageState extends State<ProjectPage> {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      childAspectRatio: 0.8,
+                      childAspectRatio: 0.75,
                     ),
                     itemCount: projects.length,
                     itemBuilder: (context, index) {
@@ -138,6 +138,7 @@ class _ProjectPageState extends State<ProjectPage> {
   }
 
   Widget _buildProjectCard(BuildContext context, ProjectModel project) {
+    print(project.name);
     return FutureBuilder<String>(
       future: getImageUrl(project.headerImageUrl ?? ''),
       builder: (context, snapshot) {
@@ -201,15 +202,21 @@ class _ProjectPageState extends State<ProjectPage> {
                         ),
                       ],
                     ),
-                    Flexible(
+                    Expanded(
                       child: Padding(
                         padding: const EdgeInsets.all(10),
                         child: Container(
+                          width: double
+                              .infinity, // Garante que o container ocupa o máximo de largura disponível
+                          alignment: Alignment
+                              .center, // Centraliza o texto no container
                           color: Colors.white,
                           child: Text(
                             project.name ?? 'Sem nome',
                             style: appWidget.boldLineTextFieldStyle(),
                             overflow: TextOverflow.ellipsis,
+                            maxLines: 1, // Limita o texto a uma linha
+                            textAlign: TextAlign.center, // Centraliza o texto
                           ),
                         ),
                       ),

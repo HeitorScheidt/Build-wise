@@ -96,10 +96,24 @@ class _LoginState extends State<Login> {
                     child: Column(
                       children: [
                         Center(
-                          child: Image.asset(
-                            "assets/images/logo-branco.png",
-                            width: MediaQuery.of(context).size.width / 1.5,
-                            fit: BoxFit.cover,
+                          child: Column(
+                            children: [
+                              Image.asset(
+                                "assets/images/logo-branco.png",
+                                width: MediaQuery.of(context).size.width / 1.5,
+                                fit: BoxFit.cover,
+                              ),
+                              Text(
+                                "Build Wise",
+                                style: TextStyle(
+                                  fontSize:
+                                      24, // Ajuste o tamanho conforme desejado
+                                  color: Colors.white,
+                                  fontWeight: FontWeight
+                                      .bold, // Deixa o texto mais grosso
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 30),

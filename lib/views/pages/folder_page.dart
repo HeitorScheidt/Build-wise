@@ -40,7 +40,9 @@ class FolderPage extends StatelessWidget {
       create: (context) =>
           FileBloc(FileService())..add(FetchFiles(userId, projectId)),
       child: Scaffold(
+        backgroundColor: Colors.white,
         appBar: AppBar(
+          backgroundColor: Colors.white,
           title: Text('Arquivos do Projeto',
               style: appWidget.headerLineTextFieldStyle()),
         ),
@@ -53,38 +55,43 @@ class FolderPage extends StatelessWidget {
                 itemCount: state.files.length,
                 itemBuilder: (context, index) {
                   ProjectFile file = state.files[index];
-                  return Material(
-                    elevation: 5.0,
-                    borderRadius:
-                        BorderRadius.circular(8.0), // Bordas arredondadas
-                    child: ListTile(
-                      title: Text(
-                        file.name,
-                        style: TextStyle(
-                            fontSize: 14.0), // Tamanho reduzido do nome
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Material(
+                      color: Colors.white,
+                      elevation: 5.0,
+                      borderRadius:
+                          BorderRadius.circular(8.0), // Bordas arredondadas
+                      child: ListTile(
+                        title: Text(
+                          file.name,
+                          style: TextStyle(
+                              fontSize: 14.0), // Tamanho reduzido do nome
+                        ),
+                        subtitle:
+                            Text('Tamanho: ${_formatFileSize(file.size)}'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (userRole != 'Cliente')
+                              IconButton(
+                                icon: Icon(Icons.delete),
+                                onPressed: () {
+                                  context.read<FileBloc>().add(DeleteFile(
+                                      userId, projectId, file.id, file.name));
+                                },
+                              ),
+                          ],
+                        ),
+                        onTap: () async {
+                          final url = file.downloadUrl;
+                          if (await canLaunch(url)) {
+                            await launch(url);
+                          } else {
+                            throw 'Could not launch $url';
+                          }
+                        },
                       ),
-                      subtitle: Text('Tamanho: ${_formatFileSize(file.size)}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (userRole != 'Cliente')
-                            IconButton(
-                              icon: Icon(Icons.delete),
-                              onPressed: () {
-                                context.read<FileBloc>().add(DeleteFile(
-                                    userId, projectId, file.id, file.name));
-                              },
-                            ),
-                        ],
-                      ),
-                      onTap: () async {
-                        final url = file.downloadUrl;
-                        if (await canLaunch(url)) {
-                          await launch(url);
-                        } else {
-                          throw 'Could not launch $url';
-                        }
-                      },
                     ),
                   );
                 },

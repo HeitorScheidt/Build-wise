@@ -21,7 +21,9 @@ class LinkPage extends StatelessWidget {
     final userRole = Provider.of<UserRoleProvider>(context).role;
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
         title: Text('Links dos Cômodos',
             style: appWidget.headerLineTextFieldStyle()),
       ),

@@ -50,7 +50,9 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
         title:
             Text('Diário de Obra', style: appWidget.headerLineTextFieldStyle()),
       ),
@@ -83,6 +85,7 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
 
   Widget _buildWorkEntryCard(WorkDiaryEntry entry, int index) {
     return Card(
+      color: Colors.white,
       elevation: 5.0,
       margin: EdgeInsets.all(8),
       child: Column(
@@ -149,6 +152,7 @@ class _WorkDiaryPageState extends State<WorkDiaryPage> {
                   return Padding(
                     padding: EdgeInsets.all(4),
                     child: Material(
+                      color: Colors.white,
                       elevation: 5.0,
                       borderRadius: BorderRadius.circular(8),
                       child: ClipRRect(

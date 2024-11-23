@@ -212,7 +212,9 @@ class _GalleryPageState extends State<GalleryPage> {
   Widget build(BuildContext context) {
     if (isLoadingRole) {
       return Scaffold(
+        backgroundColor: Colors.white,
         appBar: AppBar(
+          backgroundColor: Colors.white,
           title: Text("Gallery", style: appWidget.headerLineTextFieldStyle()),
         ),
         body: Center(child: CircularProgressIndicator()),
@@ -220,7 +222,9 @@ class _GalleryPageState extends State<GalleryPage> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
         title: Text("Gallery", style: appWidget.headerLineTextFieldStyle()),
         actions: [
           if (userRole != "Cliente" && !isSelecting)

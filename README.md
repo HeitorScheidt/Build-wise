@@ -1,16 +1,41 @@
-# build_wise
+# Build Wise - Gestão de Obras e Projetos
 
-A new Flutter project.
+## Sobre o Projeto
 
-## Getting Started
+**Build Wise** é um aplicativo de gestão de obras e projetos desenvolvido como parte do Trabalho de Conclusão de Curso (TCC) do curso de **Engenharia da Computação** na **PUC Campinas**. O objetivo principal deste projeto é oferecer uma solução eficiente e prática para arquitetos gerenciarem seus projetos e possibilitarem que seus clientes acompanhem o dia a dia da obra, reduzindo a necessidade de comunicação constante por ligações ou mensagens.
 
-This project is a starting point for a Flutter application.
+Este projeto foi pensado para atender as necessidades específicas de arquitetos e clientes, proporcionando um gerenciamento centralizado e intuitivo, utilizando tecnologias modernas e acessíveis.
 
-A few resources to get you started if this is your first Flutter project:
+---
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Funcionalidades
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- **Gestão de Projetos**: 
+  - Criação e visualização de projetos com informações detalhadas.
+  - Gerenciamento completo dos dados dos projetos.
+
+- **Gestão de Cronogramas**:
+  - Planejamento semanal e mensal de tarefas.
+  - Adição de detalhes como horário, responsável e descrição.
+
+- **Gestão Financeira**:
+  - Controle de orçamentos e despesas de cada projeto.
+
+- **Galeria de Imagens**:
+  - Upload e visualização de imagens relacionadas ao projeto.
+
+- **Diario de Obras**:
+  - Gerenciamento do que foi feio no dia a dia da obra.
+
+- **Gestão de Arquivos**:
+  - Upload e Download de arquivos pdf.
+
+- **360**:
+  - visualizar o 360 do projeto.
+
+- **Integração Cliente-Arquiteto**:
+  - Clientes podem visualizar projetos vinculados diretamente a eles, acompanhando o progresso.
+
+
+---
+
